@@ -11,8 +11,6 @@ cholera_model = joblib.load('cholera_catboost_model.joblib')
 st.title("MYCLO EBONYI STATE HEALTH PREDICTIVE MODELS")
 st.title("Disease Outcome Classification App")
 
-st.write("Model expects these features:", model.feature_names_in_)
-st.write("Input dataframe columns:", input_df.columns.tolist())
 
 # Disease selection
 disease = st.selectbox(
@@ -68,6 +66,9 @@ else:  # Cholera
 for col in ["Sex", "Outcome_of_case", "Temperature Category"]:
     if col in input_df.columns:
         input_df[col] = input_df[col].astype("category")
+
+st.write("Model expects these features:", model.feature_names_in_)
+st.write("Input dataframe columns:", input_df.columns.tolist())
 
 # Prediction button
 if st.button("Predict"):
