@@ -18,8 +18,6 @@ disease = st.selectbox(
 )
 
 # Collect inputs based on disease
-st.write("Model expects these features:", model.feature_names_in_)
-st.write("Input dataframe columns:", input_df.columns.tolist())
 
 if disease in ["Lassa Fever", "Yellow Fever"]:
     st.header(f"Input Data for {disease}")
