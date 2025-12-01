@@ -67,8 +67,11 @@ for col in ["Sex", "Outcome_of_case", "Temperature Category"]:
     if col in input_df.columns:
         input_df[col] = input_df[col].astype("category")
 
-st.write("Model expects these features:", model.feature_names_in_)
-st.write("Input dataframe columns:", input_df.columns.tolist())
+# st.write("Model expects these features:", model.feature_names_in_)
+# st.write("Input dataframe columns:", input_df.columns.tolist())
+import joblib
+model = joblib.load("xgboost_model.joblib")
+print(model.feature_names_in_)
 
 # Prediction button
 if st.button("Predict"):
