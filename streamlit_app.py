@@ -11,6 +11,9 @@ cholera_model = joblib.load('cholera_catboost_model.joblib')
 st.title("MYCLO EBONYI STATE HEALTH PREDICTIVE MODELS")
 st.title("Disease Outcome Classification App")
 
+st.write("Model expects these features:", model.feature_names_in_)
+st.write("Input dataframe columns:", input_df.columns.tolist())
+
 # Disease selection
 disease = st.selectbox(
     "Select Disease Model",
