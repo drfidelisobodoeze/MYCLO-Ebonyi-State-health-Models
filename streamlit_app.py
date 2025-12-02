@@ -26,6 +26,85 @@ def make_prediction(model, features, input_data):
     prediction = model_instance.predict(input_df)
     return prediction[0]
 
+import streamlit as st
+
+# Custom CSS styles for a mobile-friendly design
+st.markdown("""
+    <style>
+    /* Base styling for the body */
+    body {
+        background-color: #f4f4f9;
+        font-family: 'Roboto', sans-serif;
+    }
+
+    /* Adjust the layout for smaller screens (mobile devices) */
+    @media screen and (max-width: 600px) {
+        .main {
+            max-width: 100%;
+            margin: 0;
+            padding: 10px;
+        }
+
+        h1 {
+            font-size: 2em;
+            text-align: center;
+        }
+
+        /* Mobile-friendly input field sizes */
+        .stNumberInput input, .stSelectbox select, .stButton button {
+            width: 100%;
+            font-size: 14px;
+            padding: 10px;
+        }
+
+        /* Make the sidebar more compact on mobile */
+        .sidebar .sidebar-content {
+            padding: 10px;
+        }
+    }
+
+    /* Desktop view styling (large screens) */
+    @media screen and (min-width: 601px) {
+        .main {
+            max-width: 800px;
+            margin: auto;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            font-weight: 600;
+            text-align: center;
+            color: #333;
+        }
+
+        .stSelectbox select {
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        .stButton button {
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 16px;
+        }
+    }
+
+    /* Styling for prediction results */
+    .stSuccess {
+        background-color: #e8f5e9;
+        color: #388e3c;
+        border-radius: 5px;
+        padding: 10px;
+        text-align: center;
+    }
+
+    </style>
+""", unsafe_allow_html=True)
+
+# The rest of your Streamlit app goes here...
+
 # Streamlit app interface
     
 st.title("MYCLO-Ebonyi-State-health-Models: Multiple Infectious Diseases Prediction using ensemble models")
