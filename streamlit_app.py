@@ -4,7 +4,7 @@ import joblib
 # Load the models
 lassa_xgb = joblib.load("lassa_xgb.joblib")  # Ensure correct path here
 measles_model = joblib.load("measles.joblib")
-cholera_model = joblib.load("cholera.joblib")
+cholera_model = joblib.load("cholera_lgb.joblib")
 yellow_fever_model = joblib.load("yellow-fever.joblib")
 
 models = {
