@@ -10,7 +10,7 @@ measles = joblib.load("measles.joblib")
 yellow_fever = joblib.load("yellow-fever.joblib")
 
 models = {
-    "Lassa Fever": lassa,
+    "Lassa Fever": lassa_xgb,
     "Cholera": cholera,
     "Measles": measles,
     "Yellow Fever": yellow_fever
