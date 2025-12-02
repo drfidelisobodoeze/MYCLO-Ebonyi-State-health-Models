@@ -19,6 +19,12 @@ def get_top_features(model):
     if isinstance(model, dict) and "features" in model:
         return model["features"]
     return []
+# Helper function to make predictions
+def make_prediction(model, features, input_data):
+    model_instance = model['model']
+    input_df = pd.DataFrame([input_data], columns=features)
+    prediction = model_instance.predict(input_df)
+    return prediction[0]
 
 # Streamlit app interface
 st.title("Disease Case Classification Prediction App")
