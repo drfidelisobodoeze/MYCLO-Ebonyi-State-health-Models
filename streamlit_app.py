@@ -27,6 +27,8 @@ def make_prediction(model, features, input_data):
     return prediction[0]
 
 # Streamlit app interface
+    
+st.title("MYCLO-Ebonyi-State-health-Models: Multiple Infectious Diseases Prediction using ensemble models")
 st.title("Disease Case Classification Prediction App")
 
 disease = st.selectbox("Select Disease", list(models.keys()))
