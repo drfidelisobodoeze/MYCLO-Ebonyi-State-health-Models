@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 # Load models (each may be pure model or dict)
-lassa = joblib.load("lassa.joblib")
+lassa = joblib.load("lassa_xgb.joblib")
 cholera = joblib.load("cholera.joblib")
 measles = joblib.load("measles.joblib")
 yellow_fever = joblib.load("yellow-fever.joblib")
