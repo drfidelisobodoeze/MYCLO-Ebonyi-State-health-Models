@@ -4,7 +4,7 @@ import joblib
 # Load the models
 lassa_xgb = joblib.load("lassa_xgb.joblib")  # Ensure correct path here
 measles_model = joblib.load("measles.joblib")
-cholera_model = joblib.load("cholera.joblib")
+cholera_model = joblib.load("cholera_lgb.joblib")
 yellow_fever_model = joblib.load("yellow-fever.joblib")
 
 models = {
@@ -19,6 +19,13 @@ def get_top_features(model):
     if isinstance(model, dict) and "features" in model:
         return model["features"]
     return []
+
+# Function to make predictions
+def make_prediction(model, features, input_data):
+    model_instance = model["model"] if isinstance(model, dict) else model
+    input_df = pd.DataFrame([input_data], columns=features)
+    prediction = model_instance.predict(input_df)
+    return prediction[0]
 
 # Streamlit app interface
 st.title("Disease Case Classification Prediction App")
