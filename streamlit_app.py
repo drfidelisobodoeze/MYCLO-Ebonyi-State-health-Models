@@ -3,10 +3,10 @@ import joblib
 import pandas as pd
 
 # Load Models
-lassa_model = joblib.load('xgboost_model.joblib')
-yellow_fever_model = joblib.load('yellow_fever_lightgbm_model.joblib')
-measles_model = joblib.load('measles_lightgbm_model.joblib')
-cholera_model = joblib.load('cholera_catboost_model.joblib')
+lassa_model = joblib.load('lassa.joblib')
+yellow_fever_model = joblib.load('yellow-fever.joblib')
+measles_model = joblib.load('measles.joblib')
+cholera_model = joblib.load('cholera.joblib')
 
 st.title("MYCLO EBONYI STATE HEALTH PREDICTIVE MODELS")
 st.title("Disease Outcome Classification App")
