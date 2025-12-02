@@ -3,57 +3,78 @@ import joblib
 import pandas as pd
 import numpy as np
 
-# Load the models and metadata
-lassa_model = joblib.load("lassa.joblib")
-measles_model = joblib.load("measles.joblib")
-cholera_model = joblib.load("cholera.joblib")
-yellow_fever_model = joblib.load("yellow-fever.joblib")
+# Load models (each may be pure model or dict)
+lassa = joblib.load("lassa.joblib")
+cholera = joblib.load("cholera.joblib")
+measles = joblib.load("measles.joblib")
+yellow_fever = joblib.load("yellow-fever.joblib")
 
-# Mapping disease models to display
 models = {
-    "Lassa": lassa_model,
-    "Measles": measles_model,
-    "Cholera": cholera_model,
-    "Yellow Fever": yellow_fever_model
+    "Lassa Fever": lassa,
+    "Cholera": cholera,
+    "Measles": measles,
+    "Yellow Fever": yellow_fever
 }
 
-# Helper function to get top 10 features
+# Function: safely extract top 10 features
 def get_top_features(model):
-    return model['features']
+    # Case 1: Model saved as dictionary
+    if isinstance(model, dict) and "features" in model:
+        return model["features"]
 
-# Helper function to make predictions
+    # Case 2: LightGBM / XGBoost / CatBoost model with feature names
+    if hasattr(model, "feature_name_") and model.feature_name_ is not None:
+        return model.feature_name_[:10]
+
+    # Case 3: No feature information
+    return []
+
+# Function: safely extract model instance
+def extract_model(model):
+    if isinstance(model, dict) and "model" in model:
+        return model["model"]
+    return model
+
+# Function: prediction
 def make_prediction(model, features, input_data):
-    model_instance = model['model']
-    input_df = pd.DataFrame([input_data], columns=features)
-    prediction = model_instance.predict(input_df)
-    return prediction[0]
+    model_instance = extract_model(model)
 
-# Title and description of the app
-st.title("Disease Classification Prediction")
-st.write("Select the disease below, enter the data, and predict if the case is classified!")
+    # Build dataframe
+    df = pd.DataFrame([input_data], columns=features)
 
-# Sidebar for selecting disease
-disease = st.sidebar.selectbox("Choose the Disease", ("Lassa", "Measles", "Cholera", "Yellow Fever"))
+    # Run prediction
+    pred = model_instance.predict(df)
+    return pred[0]
 
-# Get the selected model
+# UI
+st.title("Disease Case Classification Prediction App")
+
+disease = st.selectbox("Select Disease", list(models.keys()))
+
 selected_model = models[disease]
 
-# Display top 10 features
+# Get features
 top_features = get_top_features(selected_model)
-st.write(f"**Top 10 features for {disease} classification:**")
-st.write(top_features)
 
-# Form for entering patient data (only the top 10 features)
-st.sidebar.header("Enter the Patient Data")
+# Warn user if no features found
+if not top_features:
+    st.error(f"❌ No feature information found inside the {disease} model.")
+    st.write("This means the model was saved without a feature list.")
+else:
+    st.write(f"### Top 10 Features for {disease}")
+    st.write(top_features)
+
+# Input section
+st.sidebar.header(f"Enter Input Values for {disease}")
+
 input_data = {}
-for feature in top_features:
-    input_data[feature] = st.sidebar.number_input(f"Enter {feature}", value=0)
+for f in top_features:
+    input_data[f] = st.sidebar.number_input(f"Enter {f}", value=0.0)
 
 # Predict button
 if st.sidebar.button("Predict"):
-    prediction = make_prediction(selected_model, top_features, input_data)
-    st.write(f"The prediction result for the selected disease is: {prediction}")
-
-# Displaying additional details
-st.write("### Disease Data Information")
-st.write(f"Model used: {disease}")
+    if not top_features:
+        st.error("Cannot predict because no feature list exists for this model.")
+    else:
+        result = make_prediction(selected_model, top_features, input_data)
+        st.success(f"Prediction for {disease}: **{result}**")
