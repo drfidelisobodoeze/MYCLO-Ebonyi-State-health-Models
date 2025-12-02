@@ -1,87 +1,59 @@
 import streamlit as st
 import joblib
 import pandas as pd
+import numpy as np
 
-# Load Models
-lassa_model = joblib.load('lassa.joblib')
-yellow_fever_model = joblib.load('yellow-fever.joblib')
-measles_model = joblib.load('measles.joblib')
-cholera_model = joblib.load('cholera.joblib')
+# Load the models and metadata
+lassa_model = joblib.load("lassa.joblib")
+measles_model = joblib.load("measles.joblib")
+cholera_model = joblib.load("cholera.joblib")
+yellow_fever_model = joblib.load("yellow-fever.joblib")
 
-st.title("MYCLO EBONYI STATE HEALTH PREDICTIVE MODELS")
-st.title("Disease Outcome Classification App")
+# Mapping disease models to display
+models = {
+    "Lassa": lassa_model,
+    "Measles": measles_model,
+    "Cholera": cholera_model,
+    "Yellow Fever": yellow_fever_model
+}
 
+# Helper function to get top 10 features
+def get_top_features(model):
+    return model['features']
 
-# Disease selection
-disease = st.selectbox(
-    "Select Disease Model",
-    ["Lassa Fever", "Yellow Fever", "Measles", "Cholera"]
-)
+# Helper function to make predictions
+def make_prediction(model, features, input_data):
+    model_instance = model['model']
+    input_df = pd.DataFrame([input_data], columns=features)
+    prediction = model_instance.predict(input_df)
+    return prediction[0]
 
-# Collect inputs based on disease
+# Title and description of the app
+st.title("Disease Classification Prediction")
+st.write("Select the disease below, enter the data, and predict if the case is classified!")
 
-if disease in ["Lassa Fever", "Yellow Fever"]:
-    st.header(f"Input Data for {disease}")
-    sex = st.selectbox("Sex", ["Male", "Female"])
-    age = st.number_input("Age", min_value=0, max_value=100, value=30)
-    outcome_of_case = st.selectbox("Outcome of Case", ["Recovered", "Deceased"])
+# Sidebar for selecting disease
+disease = st.sidebar.selectbox("Choose the Disease", ("Lassa", "Measles", "Cholera", "Yellow Fever"))
 
-    input_df = pd.DataFrame([{
-        "Sex": sex,
-        "Age": age,
-        "Outcome_of_case": outcome_of_case
-    }])
+# Get the selected model
+selected_model = models[disease]
 
-    model = lassa_model if disease == "Lassa Fever" else yellow_fever_model
+# Display top 10 features
+top_features = get_top_features(selected_model)
+st.write(f"**Top 10 features for {disease} classification:**")
+st.write(top_features)
 
-elif disease == "Measles":
-    st.header("Input Data for Measles")
-    sex = st.selectbox("Sex", ["Male", "Female"])
-    age = st.number_input("Age", min_value=0, max_value=100, value=30)
-    temp_cat = st.selectbox("Temperature Category", ["Normal", "High"])
+# Form for entering patient data (only the top 10 features)
+st.sidebar.header("Enter the Patient Data")
+input_data = {}
+for feature in top_features:
+    input_data[feature] = st.sidebar.number_input(f"Enter {feature}", value=0)
 
-    input_df = pd.DataFrame([{
-        "Sex": sex,
-        "Age": age,
-        "Temperature Category": temp_cat
-    }])
+# Predict button
+if st.sidebar.button("Predict"):
+    prediction = make_prediction(selected_model, top_features, input_data)
+    st.write(f"The prediction result for the selected disease is: {prediction}")
 
-    model = measles_model
-
-else:  # Cholera
-    st.header("Input Data for Cholera")
-    sex = st.selectbox("Sex", ["Male", "Female"])
-    age = st.number_input("Age", min_value=0, max_value=100, value=30)
-    temp_cat = st.selectbox("Temperature Category", ["Normal", "High"])
-
-    input_df = pd.DataFrame([{
-        "Sex": sex,
-        "Age": age,
-        "Temperature Category": temp_cat
-    }])
-
-    model = cholera_model
-
-# Convert categories
-for col in ["Sex", "Outcome_of_case", "Temperature Category"]:
-    if col in input_df.columns:
-        input_df[col] = input_df[col].astype("category")
-
-# st.write("Model expects these features:", model.feature_names_in_)
-# st.write("Input dataframe columns:", input_df.columns.tolist())
-import joblib
-model = joblib.load("xgboost_model.joblib")
-print(model.feature_names_in_)
-
-# Prediction button
-if st.button("Predict"):
-    pred = model.predict(input_df)
-    st.success(f"Predicted Outcome: **{pred[0]}**")
-
-# Sidebar
-st.sidebar.header("Model Information")
-st.sidebar.write("This Streamlit app loads four disease models:")
-st.sidebar.write("- Lassa Fever (XGBoost)")
-st.sidebar.write("- Yellow Fever (LightGBM)")
-st.sidebar.write("- Measles (LightGBM)")
-st.sidebar.write("- Cholera (CatBoost)")
+# Displaying additional details
+st.write("### Disease Data Information")
+st.write(f"Model used: {disease}")
