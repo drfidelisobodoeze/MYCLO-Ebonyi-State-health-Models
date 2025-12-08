@@ -3,7 +3,7 @@ import pandas as pd
 import joblib
 
 # ============================================================
-# LOAD MODELS (.joblib can be sklearn, xgb, lgbm, or dict)
+# LOAD MODELS
 # ============================================================
 
 lassa_xgb = joblib.load("lassa_xgb.joblib")
@@ -19,8 +19,8 @@ models = {
 }
 
 # ============================================================
-# MANUAL FEATURE DEFINITION (MIX OF CATEGORICAL & NUMERICAL)
-# Update these to match your training dataset
+# FEATURE SCHEMA DEFINITIONS
+# (NUMERIC OR CATEGORICAL → LIST)
 # ============================================================
 
 feature_schema = {
@@ -78,66 +78,102 @@ feature_schema = {
 }
 
 # ============================================================
-# ENCODING FUNCTION (Handles Categorical → Numeric Mapping)
+# ENCODER — Converts categorical → integer encoding
 # ============================================================
 
-def encode_input(input_dict, schema):
+def encode_features(input_dict, schema):
     encoded = {}
 
     for feature, value in input_dict.items():
-        feature_type = schema[feature]
+        ftype = schema[feature]
 
-        # Numeric
-        if feature_type == "numeric":
+        if ftype == "numeric":
             encoded[feature] = float(value)
 
-        # Categorical → Convert to integer encoding
-        elif isinstance(feature_type, list):
-            mapping = {cat: i for i, cat in enumerate(feature_type)}
+        elif isinstance(ftype, list):  # categorical
+            mapping = {cat: i for i, cat in enumerate(ftype)}
             encoded[feature] = mapping[value]
 
         else:
-            raise ValueError(f"Unknown feature type: {feature}")
+            raise ValueError(f"Unknown feature type: {ftype}")
 
     return encoded
 
-st.write("Model expects:", model.feature_names_in_)
-st.write("Input columns:", list(df.columns))
-
 
 # ============================================================
-# PREDICTION FUNCTION
+# UNIVERSAL PREDICTOR — WORKS WITH XGB/LGBM/PURE SKLEARN
 # ============================================================
 
-def make_prediction(model, features, encoded_data):
-
-    # If model is dict style
+def make_prediction(model, schema, encoded_data):
+    
+    # Unwrap dictionary model
     if isinstance(model, dict) and "model" in model:
         model = model["model"]
 
-    df = pd.DataFrame([encoded_data], columns=features)
-    prediction = model.predict(df)
-    return prediction[0]
+    # ===============================
+    # GET MODEL EXPECTED FEATURE NAMES
+    # ===============================
+
+    expected_cols = None
+
+    # XGBoost
+    if hasattr(model, "get_booster"):
+        booster = model.get_booster()
+        expected_cols = booster.feature_names
+
+    # LightGBM
+    elif hasattr(model, "feature_name_"):
+        expected_cols = model.feature_name_
+
+    # Sklearn fallback (not guaranteed)
+    elif hasattr(model, "feature_names_in_"):
+        expected_cols = list(model.feature_names_in_)
+
+    # If still none → use input keys (dangerous but ok for raw models)
+    if expected_cols is None:
+        expected_cols = list(encoded_data.keys())
+
+    # ===============================
+    # BUILD INPUT DATAFRAME
+    # ===============================
+
+    df = pd.DataFrame([encoded_data])
+
+    # Add missing columns → Fill with 0
+    for col in expected_cols:
+        if col not in df.columns:
+            df[col] = 0
+
+    # Drop extra unexpected columns
+    df = df[expected_cols]
+
+    # ===============================
+    # MAKE PREDICTION
+    # ===============================
+    pred = model.predict(df)
+
+    # Some XGBoost/LGBM return array in array
+    if hasattr(pred, "__len__"):
+        return pred[0]
+
+    return pred
 
 
 # ============================================================
-# STREAMLIT UI
+# STREAMLIT APP UI
 # ============================================================
 
 st.title("🧠 Multi-Disease Case Classification System")
-st.subheader("Supports Numeric & Categorical Inputs with Auto-Encoding")
+st.write("Enter patient features below for automated disease classification.")
 
-disease = st.selectbox("Select Disease Model", list(models.keys()))
+# Select model
+disease = st.selectbox("Select Disease", list(models.keys()))
 selected_model = models[disease]
-
 schema = feature_schema[disease]
-features = list(schema.keys())
 
-st.write(f"### Features for {disease}")
-st.write(schema)
+st.sidebar.header(f"Enter patient data for {disease}")
 
-# Collect input values
-st.sidebar.header("Enter Patient Data")
+# Input fields
 input_data = {}
 
 for feature, ftype in schema.items():
@@ -148,13 +184,11 @@ for feature, ftype in schema.items():
     elif isinstance(ftype, list):
         input_data[feature] = st.sidebar.selectbox(f"{feature}", ftype)
 
-# Predict Button
-if st.sidebar.button("Predict Case"):
+# Predict button
+if st.sidebar.button("Predict"):
 
-    # Encode categorical inputs
-    encoded_data = encode_input(input_data, schema)
+    encoded_data = encode_features(input_data, schema)
 
-    # Predict
-    prediction = make_prediction(selected_model, features, encoded_data)
+    prediction = make_prediction(selected_model, schema, encoded_data)
 
     st.success(f"### Prediction for **{disease}**: {prediction}")
