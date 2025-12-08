@@ -78,4 +78,80 @@ feature_schema = {
 }
 
 # ============================================================
-# ENCODI
+# ENCODING FUNCTION (Handles Categorical → Numeric Mapping)
+# ============================================================
+
+def encode_input(input_dict, schema):
+    encoded = {}
+
+    for feature, value in input_dict.items():
+        feature_type = schema[feature]
+
+        # Numeric
+        if feature_type == "numeric":
+            encoded[feature] = float(value)
+
+        # Categorical → Convert to integer encoding
+        elif isinstance(feature_type, list):
+            mapping = {cat: i for i, cat in enumerate(feature_type)}
+            encoded[feature] = mapping[value]
+
+        else:
+            raise ValueError(f"Unknown feature type: {feature}")
+
+    return encoded
+
+
+# ============================================================
+# PREDICTION FUNCTION
+# ============================================================
+
+def make_prediction(model, features, encoded_data):
+
+    # If model is dict style
+    if isinstance(model, dict) and "model" in model:
+        model = model["model"]
+
+    df = pd.DataFrame([encoded_data], columns=features)
+    prediction = model.predict(df)
+    return prediction[0]
+
+
+# ============================================================
+# STREAMLIT UI
+# ============================================================
+
+st.title("🧠 Multi-Disease Case Classification System")
+st.subheader("Supports Numeric & Categorical Inputs with Auto-Encoding")
+
+disease = st.selectbox("Select Disease Model", list(models.keys()))
+selected_model = models[disease]
+
+schema = feature_schema[disease]
+features = list(schema.keys())
+
+st.write(f"### Features for {disease}")
+st.write(schema)
+
+# Collect input values
+st.sidebar.header("Enter Patient Data")
+input_data = {}
+
+for feature, ftype in schema.items():
+
+    if ftype == "numeric":
+        input_data[feature] = st.sidebar.number_input(f"{feature}", value=0.0)
+
+    elif isinstance(ftype, list):
+        input_data[feature] = st.sidebar.selectbox(f"{feature}", ftype)
+
+# Predict Button
+if st.sidebar.button("Predict Case"):
+
+    # Encode categorical inputs
+    encoded_data = encode_input(input_data, schema)
+
+    # Predict
+    prediction = make_prediction(selected_model, features, encoded_data)
+
+    st.success(f"### Prediction for **{disease}**: {prediction}")
