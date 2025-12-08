@@ -113,7 +113,7 @@ def make_prediction(model, encoded_data):
     if isinstance(model, dict) and "model" in model:
         model = model["model"]
 
-    # Get feature names from the model
+    # Get feature names from model (XGBoost, LGBM, or fallback)
     if hasattr(model, "get_booster"):  # XGBoost
         feature_names = model.get_booster().feature_names
     elif hasattr(model, "feature_name_"):  # LightGBM
@@ -121,10 +121,14 @@ def make_prediction(model, encoded_data):
     else:  # sklearn
         feature_names = list(encoded_data.keys())
 
-    # Reorder DataFrame columns exactly as the model expects
-    df = pd.DataFrame([encoded_data])
-    df = df[feature_names]
+    # Warn if some features are missing
+    missing_features = [f for f in feature_names if f not in encoded_data]
+    if missing_features:
+        raise ValueError(f"Missing features for prediction: {missing_features}")
 
+    # Reorder DataFrame columns safely
+    df = pd.DataFrame([encoded_data])
+    df = df[feature_names]  # now safe
     raw = model.predict(df)[0]
     return raw
 
