@@ -8,10 +8,10 @@ import joblib
 @st.cache_resource
 def load_models():
     return {
-        "Lassa Fever": joblib.load("models/lassa_model.joblib"),
-        "Measles": joblib.load("models/measles_model.joblib"),
-        "Cholera": joblib.load("models/cholera_model.joblib"),
-        "Typhoid Fever": joblib.load("models/typhoid_model.joblib"),
+        "Lassa Fever": joblib.load("lassa_xgb.joblib"),
+        "Measles": joblib.load("measles.joblib"),
+        "Cholera": joblib.load("cholera_lgb.joblib"),
+        "Typhoid Fever": joblib.load("yellow-fever.joblib"),
     }
 
 models = load_models()
@@ -38,7 +38,7 @@ CASE_LABELS = {
         2: "Probable Case",
         3: "Confirmed Case"
     },
-    "Typhoid Fever": {
+    "Yello fever": {
         0: "Not a Case",
         1: "Suspected Case",
         2: "Probable Case",
@@ -102,7 +102,7 @@ def make_prediction(model, df, disease):
 # STREAMLIT UI
 # ==========================================================
 st.title("🩺 Disease Case Classification Prediction System")
-st.write("Predict classification for **Lassa Fever, Measles, Cholera & Typhoid Fever** using ML models.")
+st.write("Predict classification for **Lassa Fever, Measles, Cholera & Yellow Fever** using ML models.")
 
 # Model selection
 selected_disease = st.selectbox("Select Disease Model:", list(models.keys()))
