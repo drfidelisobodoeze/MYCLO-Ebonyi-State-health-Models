@@ -2,193 +2,130 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# ============================================================
+# ==========================================================
 # LOAD MODELS
-# ============================================================
-
-lassa_xgb = joblib.load("lassa_xgb.joblib")
-measles_model = joblib.load("measles.joblib")
-cholera_model = joblib.load("cholera_lgb.joblib")
-yellow_fever_model = joblib.load("yellow-fever.joblib")
-
-models = {
-    "Lassa Fever": lassa_xgb,
-    "Measles": measles_model,
-    "Cholera": cholera_model,
-    "Yellow Fever": yellow_fever_model
-}
-
-# ============================================================
-# FEATURE SCHEMA DEFINITIONS
-# (NUMERIC OR CATEGORICAL → LIST)
-# ============================================================
-
-feature_schema = {
-    "Lassa Fever": {
-        "age": "numeric",
-        "temperature": "numeric",
-        "headache": ["Yes", "No"],
-        "bleeding": ["Yes", "No"],
-        "vomiting": ["Yes", "No"],
-        "abdominal_pain": ["Yes", "No"],
-        "diarrhea": ["Yes", "No"],
-        "weakness": ["Yes", "No"],
-        "protein_level": "numeric",
-        "platelet_count": "numeric"
-    },
-
-    "Measles": {
-        "age": "numeric",
-        "fever": ["None", "Mild", "High"],
-        "rash": ["Present", "Absent"],
-        "cough": ["Yes", "No"],
-        "runny_nose": ["Yes", "No"],
-        "conjunctivitis": ["Yes", "No"],
-        "koplik_spots": ["Yes", "No"],
-        "travel_history": ["Yes", "No"],
-        "exposure": ["Yes", "No"],
-        "vaccination_status": ["Vaccinated", "Unvaccinated"]
-    },
-
-    "Cholera": {
-        "age": "numeric",
-        "watery_diarrhea": ["Yes", "No"],
-        "vomiting": ["Yes", "No"],
-        "dehydration": ["None", "Mild", "Severe"],
-        "heart_rate": "numeric",
-        "temperature": "numeric",
-        "bp_systolic": "numeric",
-        "bp_diastolic": "numeric",
-        "sodium": "numeric",
-        "chloride": "numeric"
-    },
-
-    "Yellow Fever": {
-        "age": "numeric",
-        "fever": ["None", "Mild", "High"],
-        "headache": ["Yes", "No"],
-        "jaundice": ["Yes", "No"],
-        "muscle_pain": ["Yes", "No"],
-        "vomiting": ["Yes", "No"],
-        "bleeding": ["Yes", "No"],
-        "liver_function": ["Normal", "Elevated", "Critical"],
-        "platelet_count": "numeric",
-        "exposure": ["Yes", "No"]
+# ==========================================================
+@st.cache_resource
+def load_models():
+    return {
+        "Lassa Fever": joblib.load("models/lassa_model.joblib"),
+        "Measles": joblib.load("models/measles_model.joblib"),
+        "Cholera": joblib.load("models/cholera_model.joblib"),
+        "Typhoid Fever": joblib.load("models/typhoid_model.joblib"),
     }
+
+models = load_models()
+
+# ==========================================================
+# CASE CLASSIFICATION LABELS (DISEASE-SPECIFIC)
+# ==========================================================
+CASE_LABELS = {
+    "Lassa Fever": {
+        0: "Not a Case",
+        1: "Suspected Case",
+        2: "Probable Case",
+        3: "Confirmed Case"
+    },
+    "Measles": {
+        0: "Not a Case",
+        1: "Suspected Case",
+        2: "Probable Case",
+        3: "Confirmed Case"
+    },
+    "Cholera": {
+        0: "Not a Case",
+        1: "Suspected Case",
+        2: "Probable Case",
+        3: "Confirmed Case"
+    },
+    "Typhoid Fever": {
+        0: "Not a Case",
+        1: "Suspected Case",
+        2: "Probable Case",
+        3: "Confirmed Case"
+    },
 }
 
-# ============================================================
-# ENCODER — Converts categorical → integer encoding
-# ============================================================
+# ==========================================================
+# CATEGORY ENCODERS (Modify with your real encodings)
+# ==========================================================
+categorical_encoders = {
+    "sex": {"Male": 0, "Female": 1},
+    "location": {"Urban": 0, "Rural": 1},
+    "contact_case": {"No": 0, "Yes": 1},
+}
 
-def encode_features(input_dict, schema):
+# ==========================================================
+# INPUT FORM BUILDER
+# ==========================================================
+def build_input_form(feature_names):
+    st.subheader("Enter Patient Data")
+
+    data = {}
+
+    for feature in feature_names:
+        if feature in categorical_encoders:
+            data[feature] = st.selectbox(
+                feature.replace("_", " ").title(),
+                list(categorical_encoders[feature].keys())
+            )
+        else:
+            data[feature] = st.number_input(
+                feature.replace("_", " ").title(),
+                value=0.0
+            )
+    return data
+
+# ==========================================================
+# ENCODE INPUTS
+# ==========================================================
+def encode_inputs(input_dict):
     encoded = {}
 
-    for feature, value in input_dict.items():
-        ftype = schema[feature]
-
-        if ftype == "numeric":
-            encoded[feature] = float(value)
-
-        elif isinstance(ftype, list):  # categorical
-            mapping = {cat: i for i, cat in enumerate(ftype)}
-            encoded[feature] = mapping[value]
-
+    for key, value in input_dict.items():
+        if key in categorical_encoders:
+            encoded[key] = categorical_encoders[key][value]
         else:
-            raise ValueError(f"Unknown feature type: {ftype}")
+            encoded[key] = value
 
     return encoded
 
+# ==========================================================
+# PREDICTION FUNCTION
+# ==========================================================
+def make_prediction(model, df, disease):
+    raw_pred = model.predict(df)[0]
+    label = CASE_LABELS[disease].get(raw_pred, f"Unknown Class ({raw_pred})")
+    return raw_pred, label
 
-# ============================================================
-# UNIVERSAL PREDICTOR — WORKS WITH XGB/LGBM/PURE SKLEARN
-# ============================================================
+# ==========================================================
+# STREAMLIT UI
+# ==========================================================
+st.title("🩺 Disease Case Classification Prediction System")
+st.write("Predict classification for **Lassa Fever, Measles, Cholera & Typhoid Fever** using ML models.")
 
-def make_prediction(model, schema, encoded_data):
-    
-    # Unwrap dictionary model
-    if isinstance(model, dict) and "model" in model:
-        model = model["model"]
+# Model selection
+selected_disease = st.selectbox("Select Disease Model:", list(models.keys()))
+selected_model = models[selected_disease]
 
-    # ===============================
-    # GET MODEL EXPECTED FEATURE NAMES
-    # ===============================
+# Show required features
+st.info(f"Model expects the following features: {list(selected_model.feature_names_in_)}")
 
-    expected_cols = None
+# Build input UI
+user_inputs = build_input_form(selected_model.feature_names_in_)
+encoded_data = encode_inputs(user_inputs)
 
-    # XGBoost
-    if hasattr(model, "get_booster"):
-        booster = model.get_booster()
-        expected_cols = booster.feature_names
-
-    # LightGBM
-    elif hasattr(model, "feature_name_"):
-        expected_cols = model.feature_name_
-
-    # Sklearn fallback (not guaranteed)
-    elif hasattr(model, "feature_names_in_"):
-        expected_cols = list(model.feature_names_in_)
-
-    # If still none → use input keys (dangerous but ok for raw models)
-    if expected_cols is None:
-        expected_cols = list(encoded_data.keys())
-
-    # ===============================
-    # BUILD INPUT DATAFRAME
-    # ===============================
-
-    df = pd.DataFrame([encoded_data])
-
-    # Add missing columns → Fill with 0
-    for col in expected_cols:
-        if col not in df.columns:
-            df[col] = 0
-
-    # Drop extra unexpected columns
-    df = df[expected_cols]
-
-    # ===============================
-    # MAKE PREDICTION
-    # ===============================
-    pred = model.predict(df)
-
-    # Some XGBoost/LGBM return array in array
-    if hasattr(pred, "__len__"):
-        return pred[0]
-
-    return pred
-
-
-# ============================================================
-# STREAMLIT APP UI
-# ============================================================
-
-st.title("🧠 Multi-Disease Case Classification System")
-st.write("Enter patient features below for automated disease classification.")
-
-# Select model
-disease = st.selectbox("Select Disease", list(models.keys()))
-selected_model = models[disease]
-schema = feature_schema[disease]
-
-st.sidebar.header(f"Enter patient data for {disease}")
-
-# Input fields
-input_data = {}
-
-for feature, ftype in schema.items():
-
-    if ftype == "numeric":
-        input_data[feature] = st.sidebar.number_input(f"{feature}", value=0.0)
-
-    elif isinstance(ftype, list):
-        input_data[feature] = st.sidebar.selectbox(f"{feature}", ftype)
+# Convert to DataFrame
+df = pd.DataFrame([encoded_data], columns=selected_model.feature_names_in_)
 
 # Predict button
-if st.sidebar.button("Predict"):
+if st.button("🔍 Predict Case Classification"):
+    try:
+        numeric_pred, label_pred = make_prediction(selected_model, df, selected_disease)
 
-    encoded_data = encode_features(input_data, schema)
+        st.success(f"🎯 **Predicted Case Classification:** {label_pred}")
+        st.caption(f"Model raw output: {numeric_pred}")
 
-    prediction = make_prediction(selected_model, schema, encoded_data)
-
-    st.success(f"### Prediction for **{disease}**: {prediction}")
+    except Exception as e:
+        st.error("❌ Error occurred during prediction")
+        st.code(str(e))
