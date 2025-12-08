@@ -3,16 +3,15 @@ import pandas as pd
 import joblib
 
 # ============================================================
-# LOAD MODELS
+# LOAD RAW MODELS
 # ============================================================
-
-lassa_xgb = joblib.load("lassa_xgb.joblib")
+lassa_model = joblib.load("lassa_xgb.joblib")
 measles_model = joblib.load("measles.joblib")
 cholera_model = joblib.load("cholera_lgb.joblib")
 yellow_fever_model = joblib.load("yellow-fever.joblib")
 
 models = {
-    "Lassa Fever": lassa_xgb,
+    "Lassa Fever": lassa_model,
     "Measles": measles_model,
     "Cholera": cholera_model,
     "Yellow Fever": yellow_fever_model
@@ -21,7 +20,6 @@ models = {
 # ============================================================
 # FEATURE SCHEMA
 # ============================================================
-
 feature_schema = {
     "Lassa Fever": {
         "age": "numeric",
@@ -35,7 +33,6 @@ feature_schema = {
         "protein_level": "numeric",
         "platelet_count": "numeric"
     },
-
     "Measles": {
         "age": "numeric",
         "fever": ["None", "Mild", "High"],
@@ -48,7 +45,6 @@ feature_schema = {
         "exposure": ["Yes", "No"],
         "vaccination_status": ["Vaccinated", "Unvaccinated"]
     },
-
     "Cholera": {
         "age": "numeric",
         "watery_diarrhea": ["Yes", "No"],
@@ -61,7 +57,6 @@ feature_schema = {
         "sodium": "numeric",
         "chloride": "numeric"
     },
-
     "Yellow Fever": {
         "age": "numeric",
         "fever": ["None", "Mild", "High"],
@@ -79,7 +74,6 @@ feature_schema = {
 # ============================================================
 # CASE LABELS
 # ============================================================
-
 CASE_LABELS = {
     "Lassa Fever": {0:"Not a Case", 1:"Suspected Case", 2:"Probable Case", 3:"Confirmed Case"},
     "Measles":     {0:"Not a Case", 1:"Suspected Case", 2:"Probable Case", 3:"Confirmed Case"},
@@ -88,70 +82,53 @@ CASE_LABELS = {
 }
 
 # ============================================================
-# ENCODING FUNCTION
+# ONE-HOT ENCODING FUNCTION TO MATCH MODEL FEATURES
 # ============================================================
+def encode_input_onehot(input_dict, schema, model):
+    # Get model feature names
+    if hasattr(model, "get_booster"):  # XGBoost
+        model_features = model.get_booster().feature_names
+    elif hasattr(model, "feature_name_"):  # LightGBM
+        model_features = model.feature_name_
+    else:
+        model_features = list(input_dict.keys())  # sklearn models
 
-def encode_input(input_dict, schema):
-    encoded = {}
+    # Start with all zeros
+    encoded = dict.fromkeys(model_features, 0)
+
     for feature, value in input_dict.items():
         ftype = schema[feature]
         if ftype == "numeric":
-            encoded[feature] = float(value)
+            if feature in encoded:
+                encoded[feature] = float(value)
         elif isinstance(ftype, list):
-            mapping = {cat: i for i, cat in enumerate(ftype)}
-            encoded[feature] = mapping[value]
-        else:
-            raise ValueError(f"Unknown feature type: {feature}")
-    return encoded
+            # One-hot column
+            col_name = f"{feature}_{value}"
+            if col_name in encoded:
+                encoded[col_name] = 1
+
+    return pd.DataFrame([encoded])
 
 # ============================================================
 # PREDICTION FUNCTION
 # ============================================================
-
-def make_prediction(model, schema, encoded_data):
-
-    # Unwrap dict model
-    if isinstance(model, dict) and "model" in model:
-        model = model["model"]
-
-    # XGBoost booster mode
-    if hasattr(model, "get_booster"):
-        booster = model.get_booster()
-        expected_cols = booster.feature_names
-    else:
-        expected_cols = list(encoded_data.keys())
-
-    # Convert to DataFrame
-    df = pd.DataFrame([encoded_data])
-
-    # Create missing columns
-    for col in expected_cols:
-        if col not in df.columns:
-            df[col] = 0
-
-    # Drop extra columns not in model
-    df = df[expected_cols]
-
-    return model.predict(df)[0]
+def make_prediction(model, input_df):
+    raw = model.predict(input_df)[0]
+    return raw
 
 # ============================================================
 # STREAMLIT UI
 # ============================================================
-
 st.title("🧠 Multi-Disease Case Classification System")
-st.subheader("Supports Numeric & Categorical Inputs with Auto-Encoding")
+st.subheader("Numeric & Categorical Inputs for Single Patient Prediction")
 
+# Select disease
 disease = st.selectbox("Select Disease Model", list(models.keys()))
-selected_model = models[disease]
-
+model = models[disease]
 schema = feature_schema[disease]
-features = list(schema.keys())
-
-st.write(f"### Features for {disease}")
-st.write(schema)
 
 # -------------------
-# SINGLE PREDICTION
+# Collect input values
 # -------------------
 st.sidebar.header("Enter Patient Data")
 input_data = {}
@@ -161,21 +138,29 @@ for feature, ftype in schema.items():
     elif isinstance(ftype, list):
         input_data[feature] = st.sidebar.selectbox(feature, ftype)
 
+# -------------------
+# Predict button
+# -------------------
 if st.sidebar.button("Predict Case"):
-    encoded_data = encode_input(input_data, schema)
-    raw_pred = make_prediction(selected_model, encoded_data)
-    label = CASE_LABELS[disease][raw_pred]
+    try:
+        # Encode input to match model features
+        input_df = encode_input_onehot(input_data, schema, model)
+        raw_pred = make_prediction(model, input_df)
+        label = CASE_LABELS[disease][raw_pred]
 
-    # Colored result card
-    color_class = {
-        "Confirmed Case": "#27ae60",
-        "Probable Case": "#f39c12",
-        "Suspected Case": "#e67e22",
-        "Not a Case": "#c0392b"
-    }.get(label, "#7f8c8d")
+        # Colored result card
+        color_class = {
+            "Confirmed Case": "#27ae60",
+            "Probable Case": "#f39c12",
+            "Suspected Case": "#e67e22",
+            "Not a Case": "#c0392b"
+        }.get(label, "#7f8c8d")
 
-    st.markdown(
-        f'<div style="padding:20px; border-radius:12px; color:white; background-color:{color_class}; text-align:center; font-size:22px;">Prediction: <b>{label}</b></div>',
-        unsafe_allow_html=True
-    )
-    st.caption(f"Raw Model Output: {raw_pred}")
+        st.markdown(
+            f'<div style="padding:20px; border-radius:12px; color:white; background-color:{color_class}; text-align:center; font-size:22px;">Prediction: <b>{label}</b></div>',
+            unsafe_allow_html=True
+        )
+        st.caption(f"Raw Model Output: {raw_pred}")
+
+    except Exception as e:
+        st.error(f"Prediction failed: {e}")
