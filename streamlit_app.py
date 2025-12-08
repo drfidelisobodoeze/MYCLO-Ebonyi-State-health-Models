@@ -108,29 +108,31 @@ def encode_input(input_dict, schema):
 # PREDICTION FUNCTION
 # ============================================================
 
-def make_prediction(model, encoded_data):
-    # Handle dict-style model
+def make_prediction(model, schema, encoded_data):
+
+    # Unwrap dict model
     if isinstance(model, dict) and "model" in model:
         model = model["model"]
 
-    # Get feature names from model (XGBoost, LGBM, or fallback)
-    if hasattr(model, "get_booster"):  # XGBoost
-        feature_names = model.get_booster().feature_names
-    elif hasattr(model, "feature_name_"):  # LightGBM
-        feature_names = model.feature_name_
-    else:  # sklearn
-        feature_names = list(encoded_data.keys())
+    # XGBoost booster mode
+    if hasattr(model, "get_booster"):
+        booster = model.get_booster()
+        expected_cols = booster.feature_names
+    else:
+        expected_cols = list(encoded_data.keys())
 
-    # Warn if some features are missing
-    missing_features = [f for f in feature_names if f not in encoded_data]
-    if missing_features:
-        raise ValueError(f"Missing features for prediction: {missing_features}")
-
-    # Reorder DataFrame columns safely
+    # Convert to DataFrame
     df = pd.DataFrame([encoded_data])
-    df = df[feature_names]  # now safe
-    raw = model.predict(df)[0]
-    return raw
+
+    # Create missing columns
+    for col in expected_cols:
+        if col not in df.columns:
+            df[col] = 0
+
+    # Drop extra columns not in model
+    df = df[expected_cols]
+
+    return model.predict(df)[0]
 
 # ============================================================
 # STREAMLIT UI
