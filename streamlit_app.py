@@ -3,7 +3,7 @@ import pandas as pd
 import joblib
 
 # ============================================================
-# LOAD MODELS (.joblib can be sklearn, xgb, lgbm, or dict)
+# LOAD MODELS
 # ============================================================
 
 lassa_xgb = joblib.load("lassa_xgb.joblib")
@@ -19,8 +19,7 @@ models = {
 }
 
 # ============================================================
-# MANUAL FEATURE DEFINITION (MIX OF CATEGORICAL & NUMERICAL)
-# Update these to match your training dataset
+# FEATURE SCHEMA
 # ============================================================
 
 feature_schema = {
@@ -78,44 +77,43 @@ feature_schema = {
 }
 
 # ============================================================
-# ENCODING FUNCTION (Handles Categorical → Numeric Mapping)
+# CASE LABELS
+# ============================================================
+
+CASE_LABELS = {
+    "Lassa Fever": {0:"Not a Case", 1:"Suspected Case", 2:"Probable Case", 3:"Confirmed Case"},
+    "Measles":     {0:"Not a Case", 1:"Suspected Case", 2:"Probable Case", 3:"Confirmed Case"},
+    "Cholera":     {0:"Not a Case", 1:"Suspected Case", 2:"Probable Case", 3:"Confirmed Case"},
+    "Yellow Fever":{0:"Not a Case", 1:"Suspected Case", 2:"Probable Case", 3:"Confirmed Case"},
+}
+
+# ============================================================
+# ENCODING FUNCTION
 # ============================================================
 
 def encode_input(input_dict, schema):
     encoded = {}
-
     for feature, value in input_dict.items():
-        feature_type = schema[feature]
-
-        # Numeric
-        if feature_type == "numeric":
+        ftype = schema[feature]
+        if ftype == "numeric":
             encoded[feature] = float(value)
-
-        # Categorical → Convert to integer encoding
-        elif isinstance(feature_type, list):
-            mapping = {cat: i for i, cat in enumerate(feature_type)}
+        elif isinstance(ftype, list):
+            mapping = {cat: i for i, cat in enumerate(ftype)}
             encoded[feature] = mapping[value]
-
         else:
             raise ValueError(f"Unknown feature type: {feature}")
-
     return encoded
-
 
 # ============================================================
 # PREDICTION FUNCTION
 # ============================================================
 
 def make_prediction(model, features, encoded_data):
-
-    # If model is dict style
     if isinstance(model, dict) and "model" in model:
         model = model["model"]
-
     df = pd.DataFrame([encoded_data], columns=features)
-    prediction = model.predict(df)
-    return prediction[0]
-
+    raw = model.predict(df)[0]
+    return raw
 
 # ============================================================
 # STREAMLIT UI
@@ -133,25 +131,28 @@ features = list(schema.keys())
 st.write(f"### Features for {disease}")
 st.write(schema)
 
-# Collect input values
+# -------------------
+# SINGLE PREDICTION
+# -------------------
 st.sidebar.header("Enter Patient Data")
 input_data = {}
-
 for feature, ftype in schema.items():
-
     if ftype == "numeric":
-        input_data[feature] = st.sidebar.number_input(f"{feature}", value=0.0)
-
+        input_data[feature] = st.sidebar.number_input(feature, value=0.0)
     elif isinstance(ftype, list):
-        input_data[feature] = st.sidebar.selectbox(f"{feature}", ftype)
+        input_data[feature] = st.sidebar.selectbox(feature, ftype)
 
-# Predict Button
 if st.sidebar.button("Predict Case"):
-
-    # Encode categorical inputs
     encoded_data = encode_input(input_data, schema)
+    raw_pred = make_prediction(selected_model, features, encoded_data)
+    label = CASE_LABELS[disease][raw_pred]
 
-    # Predict
-    prediction = make_prediction(selected_model, features, encoded_data)
+    color_class = {
+        "Confirmed Case": "#27ae60",
+        "Probable Case": "#f39c12",
+        "Suspected Case": "#e67e22",
+        "Not a Case": "#c0392b"
+    }.get(label, "#7f8c8d")
 
-    st.success(f"### Prediction for **{disease}**: {prediction}")
+    st.markdown(f'<div style="padding:20px; border-radius:12px; color:white; background-color:{color_class}; text-align:center; font-size:22px;">Prediction: <b>{label}</b></div>', unsafe_allow_html=True)
+    st.caption(f"Raw Model Output: {raw_pred}")
