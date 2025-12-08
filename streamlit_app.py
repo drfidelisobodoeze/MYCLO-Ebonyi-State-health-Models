@@ -108,10 +108,23 @@ def encode_input(input_dict, schema):
 # PREDICTION FUNCTION
 # ============================================================
 
-def make_prediction(model, features, encoded_data):
+def make_prediction(model, encoded_data):
+    # Handle dict-style model
     if isinstance(model, dict) and "model" in model:
         model = model["model"]
-    df = pd.DataFrame([encoded_data], columns=features)
+
+    # Get feature names from the model
+    if hasattr(model, "get_booster"):  # XGBoost
+        feature_names = model.get_booster().feature_names
+    elif hasattr(model, "feature_name_"):  # LightGBM
+        feature_names = model.feature_name_
+    else:  # sklearn
+        feature_names = list(encoded_data.keys())
+
+    # Reorder DataFrame columns exactly as the model expects
+    df = pd.DataFrame([encoded_data])
+    df = df[feature_names]
+
     raw = model.predict(df)[0]
     return raw
 
@@ -144,9 +157,10 @@ for feature, ftype in schema.items():
 
 if st.sidebar.button("Predict Case"):
     encoded_data = encode_input(input_data, schema)
-    raw_pred = make_prediction(selected_model, features, encoded_data)
+    raw_pred = make_prediction(selected_model, encoded_data)
     label = CASE_LABELS[disease][raw_pred]
 
+    # Colored result card
     color_class = {
         "Confirmed Case": "#27ae60",
         "Probable Case": "#f39c12",
@@ -154,5 +168,8 @@ if st.sidebar.button("Predict Case"):
         "Not a Case": "#c0392b"
     }.get(label, "#7f8c8d")
 
-    st.markdown(f'<div style="padding:20px; border-radius:12px; color:white; background-color:{color_class}; text-align:center; font-size:22px;">Prediction: <b>{label}</b></div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="padding:20px; border-radius:12px; color:white; background-color:{color_class}; text-align:center; font-size:22px;">Prediction: <b>{label}</b></div>',
+        unsafe_allow_html=True
+    )
     st.caption(f"Raw Model Output: {raw_pred}")
