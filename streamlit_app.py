@@ -33,7 +33,7 @@ CASE_LABELS = {
 }
 
 # ==========================================================
-# CATEGORICAL ENCODING
+# CATEGORICAL ENCODERS
 # ==========================================================
 categorical_encoders = {
     "sex": {"Male": 0, "Female": 1},
@@ -53,14 +53,12 @@ def encode_single_row(input_dict):
             encoded[col] = value
     return encoded
 
-
 def encode_csv(df: pd.DataFrame):
     df = df.copy()
     for col in df.columns:
         if col in categorical_encoders:
             df[col] = df[col].map(categorical_encoders[col])
     return df
-
 
 # ==========================================================
 # PREDICTION FUNCTIONS
@@ -70,26 +68,22 @@ def predict_single(model, df, disease):
     label = CASE_LABELS[disease].get(raw, f"Unknown ({raw})")
     return raw, label
 
-
 def predict_batch(model, df, disease):
     raw_predictions = model.predict(df)
     labels = [CASE_LABELS[disease].get(p, f"Unknown ({p})") for p in raw_predictions]
     return raw_predictions, labels
 
-
 # ==========================================================
-# CUSTOM UI STYLING
+# UI STYLING
 # ==========================================================
 st.markdown("""
 <style>
-
 .big-title {
     font-size: 36px;
     font-weight: bold;
     color: #2C3E50;
     text-align: center;
 }
-
 .result-card {
     padding: 20px;
     border-radius: 12px;
@@ -98,12 +92,10 @@ st.markdown("""
     font-size: 22px;
     margin-top: 20px;
 }
-
 .confirmed { background-color: #27ae60 !important; }
 .probable  { background-color: #f39c12 !important; }
 .suspected { background-color: #e67e22 !important; }
 .not-case  { background-color: #c0392b !important; }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -117,20 +109,28 @@ selected_disease = st.selectbox("Select Disease Model", list(models.keys()))
 selected_model = models[selected_disease]
 
 # ==========================================================
+# DETERMINE FEATURE NAMES SAFELY
+# ==========================================================
+if hasattr(selected_model, "get_booster"):  # XGBoost
+    feature_names = selected_model.get_booster().feature_names
+elif hasattr(selected_model, "feature_name_"):  # LightGBM
+    feature_names = selected_model.feature_name_
+elif hasattr(selected_model, "feature_names_in_"):  # Sklearn
+    feature_names = list(selected_model.feature_names_in_)
+else:
+    feature_names = list(categorical_encoders.keys())  # fallback
+
+# ==========================================================
 # SIDEBAR
 # ==========================================================
 st.sidebar.title("📌 Model Information")
-
-with st.sidebar:
-    st.write("### Expected Model Features:")
-    st.info(", ".join(selected_model.feature_names_in_))
-
-    st.write("### Categorical Codes Used:")
-    st.json(categorical_encoders)
-
+st.sidebar.write("### Expected Model Features:")
+st.sidebar.info(", ".join(feature_names))
+st.sidebar.write("### Categorical Encoders:")
+st.sidebar.json(categorical_encoders)
 
 # ==========================================================
-# TABS (Single Prediction | CSV Upload)
+# TABS
 # ==========================================================
 tab1, tab2 = st.tabs(["🧍 Single Prediction", "📤 CSV Upload"])
 
@@ -143,9 +143,8 @@ with tab1:
     user_data = {}
     col1, col2 = st.columns(2)
 
-    for i, feature in enumerate(selected_model.feature_names_in_):
+    for i, feature in enumerate(feature_names):
         with (col1 if i % 2 == 0 else col2):
-
             if feature in categorical_encoders:
                 user_data[feature] = st.selectbox(
                     feature.replace("_", " ").title(),
@@ -158,12 +157,11 @@ with tab1:
                 )
 
     encoded = encode_single_row(user_data)
-    df = pd.DataFrame([encoded], columns=selected_model.feature_names_in_)
+    df = pd.DataFrame([encoded], columns=feature_names)
 
     if st.button("🔍 Predict Case Classification"):
         raw_pred, label = predict_single(selected_model, df, selected_disease)
 
-        # Color assignment
         color_class = {
             "Confirmed Case": "confirmed",
             "Probable Case": "probable",
@@ -175,8 +173,7 @@ with tab1:
             f'<div class="result-card {color_class}">Prediction: <b>{label}</b></div>',
             unsafe_allow_html=True
         )
-
-        st.caption(f"Model Raw Output: {raw_pred}")
+        st.caption(f"Raw Model Output: {raw_pred}")
 
 # ==========================================================
 # TAB 2 - CSV UPLOAD
@@ -188,12 +185,10 @@ with tab2:
 
     if uploaded_file:
         df = pd.read_csv(uploaded_file)
-
         st.write("### Uploaded File Preview")
         st.dataframe(df.head())
 
-        # Check missing columns
-        missing_cols = [col for col in selected_model.feature_names_in_ if col not in df.columns]
+        missing_cols = [col for col in feature_names if col not in df.columns]
         if missing_cols:
             st.error(f"❌ Missing required columns: {missing_cols}")
         else:
@@ -207,11 +202,9 @@ with tab2:
                 df_results["Case Classification"] = labels
 
                 st.success("Batch prediction completed successfully!")
-
                 st.write("### Prediction Results")
                 st.dataframe(df_results)
 
-                # Download button
                 csv_file = df_results.to_csv(index=False).encode("utf-8")
                 st.download_button(
                     label="⬇️ Download Results CSV",
