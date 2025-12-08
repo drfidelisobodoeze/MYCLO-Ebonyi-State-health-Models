@@ -14,10 +14,10 @@ st.set_page_config(
 @st.cache_resource
 def load_models():
     return {
-        "Lassa Fever": joblib.load("models/lassa_model.joblib"),
-        "Measles": joblib.load("models/measles_model.joblib"),
-        "Cholera": joblib.load("models/cholera_model.joblib"),
-        "Typhoid Fever": joblib.load("models/typhoid_model.joblib"),
+        "Lassa Fever": joblib.load("lassa_xgb.joblib"),
+        "Measles": joblib.load("measles.joblib"),
+        "Cholera": joblib.load("cholera_lgb.joblib"),
+        "Typhoid Fever": joblib.load("yellow-fever.joblib"),
     }
 
 models = load_models()
@@ -111,7 +111,7 @@ st.markdown("""
 # MAIN PAGE
 # ==========================================================
 st.markdown('<p class="big-title">🩺 Disease Case Classification Prediction System</p>', unsafe_allow_html=True)
-st.write("Predict case classifications for **Lassa Fever, Measles, Cholera, and Typhoid Fever**.")
+st.write("Predict case classifications for **Lassa Fever, Measles, Cholera, and Yellow Fever**.")
 
 selected_disease = st.selectbox("Select Disease Model", list(models.keys()))
 selected_model = models[selected_disease]
