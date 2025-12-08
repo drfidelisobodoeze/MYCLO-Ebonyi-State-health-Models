@@ -2,38 +2,52 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-st.set_page_config(
-    page_title="Disease Case Classification App",
-    layout="wide",
-    page_icon="🩺"
-)
-
 # ==========================================================
 # LOAD MODELS
 # ==========================================================
 @st.cache_resource
 def load_models():
     return {
-        "Lassa Fever": joblib.load("lassa_xgb.joblib"),
-        "Measles": joblib.load("measles.joblib"),
-        "Cholera": joblib.load("cholera_lgb.joblib"),
-        "Typhoid Fever": joblib.load("yellow-fever.joblib"),
+        "Lassa Fever": joblib.load("models/lassa_model.joblib"),
+        "Measles": joblib.load("models/measles_model.joblib"),
+        "Cholera": joblib.load("models/cholera_model.joblib"),
+        "Typhoid Fever": joblib.load("models/typhoid_model.joblib"),
     }
 
 models = load_models()
 
 # ==========================================================
-# CASE CLASS LABELS
+# CASE CLASSIFICATION LABELS (DISEASE-SPECIFIC)
 # ==========================================================
 CASE_LABELS = {
-    "Lassa Fever":      {0:"Not a Case",1:"Suspected Case",2:"Probable Case",3:"Confirmed Case"},
-    "Measles":          {0:"Not a Case",1:"Suspected Case",2:"Probable Case",3:"Confirmed Case"},
-    "Cholera":          {0:"Not a Case",1:"Suspected Case",2:"Probable Case",3:"Confirmed Case"},
-    "Typhoid Fever":    {0:"Not a Case",1:"Suspected Case",2:"Probable Case",3:"Confirmed Case"},
+    "Lassa Fever": {
+        0: "Not a Case",
+        1: "Suspected Case",
+        2: "Probable Case",
+        3: "Confirmed Case"
+    },
+    "Measles": {
+        0: "Not a Case",
+        1: "Suspected Case",
+        2: "Probable Case",
+        3: "Confirmed Case"
+    },
+    "Cholera": {
+        0: "Not a Case",
+        1: "Suspected Case",
+        2: "Probable Case",
+        3: "Confirmed Case"
+    },
+    "Typhoid Fever": {
+        0: "Not a Case",
+        1: "Suspected Case",
+        2: "Probable Case",
+        3: "Confirmed Case"
+    },
 }
 
 # ==========================================================
-# CATEGORICAL ENCODERS
+# CATEGORY ENCODERS (Modify with your real encodings)
 # ==========================================================
 categorical_encoders = {
     "sex": {"Male": 0, "Female": 1},
@@ -42,173 +56,76 @@ categorical_encoders = {
 }
 
 # ==========================================================
-# ENCODING FUNCTIONS
+# INPUT FORM BUILDER
 # ==========================================================
-def encode_single_row(input_dict):
-    encoded = {}
-    for col, value in input_dict.items():
-        if col in categorical_encoders:
-            encoded[col] = categorical_encoders[col][value]
-        else:
-            encoded[col] = value
-    return encoded
-
-def encode_csv(df: pd.DataFrame):
-    df = df.copy()
-    for col in df.columns:
-        if col in categorical_encoders:
-            df[col] = df[col].map(categorical_encoders[col])
-    return df
-
-# ==========================================================
-# PREDICTION FUNCTIONS
-# ==========================================================
-def predict_single(model, df, disease):
-    raw = model.predict(df)[0]
-    label = CASE_LABELS[disease].get(raw, f"Unknown ({raw})")
-    return raw, label
-
-def predict_batch(model, df, disease):
-    raw_predictions = model.predict(df)
-    labels = [CASE_LABELS[disease].get(p, f"Unknown ({p})") for p in raw_predictions]
-    return raw_predictions, labels
-
-# ==========================================================
-# UI STYLING
-# ==========================================================
-st.markdown("""
-<style>
-.big-title {
-    font-size: 36px;
-    font-weight: bold;
-    color: #2C3E50;
-    text-align: center;
-}
-.result-card {
-    padding: 20px;
-    border-radius: 12px;
-    color: white;
-    text-align: center;
-    font-size: 22px;
-    margin-top: 20px;
-}
-.confirmed { background-color: #27ae60 !important; }
-.probable  { background-color: #f39c12 !important; }
-.suspected { background-color: #e67e22 !important; }
-.not-case  { background-color: #c0392b !important; }
-</style>
-""", unsafe_allow_html=True)
-
-# ==========================================================
-# MAIN PAGE
-# ==========================================================
-st.markdown('<p class="big-title">🩺 Disease Case Classification Prediction System</p>', unsafe_allow_html=True)
-st.write("Predict case classifications for **Lassa Fever, Measles, Cholera, and Yellow Fever**.")
-
-selected_disease = st.selectbox("Select Disease Model", list(models.keys()))
-selected_model = models[selected_disease]
-
-# ==========================================================
-# DETERMINE FEATURE NAMES SAFELY
-# ==========================================================
-if hasattr(selected_model, "get_booster"):  # XGBoost
-    feature_names = selected_model.get_booster().feature_names
-elif hasattr(selected_model, "feature_name_"):  # LightGBM
-    feature_names = selected_model.feature_name_
-elif hasattr(selected_model, "feature_names_in_"):  # Sklearn
-    feature_names = list(selected_model.feature_names_in_)
-else:
-    feature_names = list(categorical_encoders.keys())  # fallback
-
-# ==========================================================
-# SIDEBAR
-# ==========================================================
-st.sidebar.title("📌 Model Information")
-st.sidebar.write("### Expected Model Features:")
-st.sidebar.info(", ".join(feature_names))
-st.sidebar.write("### Categorical Encoders:")
-st.sidebar.json(categorical_encoders)
-
-# ==========================================================
-# TABS
-# ==========================================================
-tab1, tab2 = st.tabs(["🧍 Single Prediction", "📤 CSV Upload"])
-
-# ==========================================================
-# TAB 1 - SINGLE PREDICTION
-# ==========================================================
-with tab1:
+def build_input_form(feature_names):
     st.subheader("Enter Patient Data")
 
-    user_data = {}
-    col1, col2 = st.columns(2)
+    data = {}
 
-    for i, feature in enumerate(feature_names):
-        with (col1 if i % 2 == 0 else col2):
-            if feature in categorical_encoders:
-                user_data[feature] = st.selectbox(
-                    feature.replace("_", " ").title(),
-                    list(categorical_encoders[feature].keys())
-                )
-            else:
-                user_data[feature] = st.number_input(
-                    feature.replace("_", " ").title(),
-                    value=0.0
-                )
-
-    encoded = encode_single_row(user_data)
-    df = pd.DataFrame([encoded], columns=feature_names)
-
-    if st.button("🔍 Predict Case Classification"):
-        raw_pred, label = predict_single(selected_model, df, selected_disease)
-
-        color_class = {
-            "Confirmed Case": "confirmed",
-            "Probable Case": "probable",
-            "Suspected Case": "suspected",
-            "Not a Case": "not-case",
-        }.get(label, "not-case")
-
-        st.markdown(
-            f'<div class="result-card {color_class}">Prediction: <b>{label}</b></div>',
-            unsafe_allow_html=True
-        )
-        st.caption(f"Raw Model Output: {raw_pred}")
-
-# ==========================================================
-# TAB 2 - CSV UPLOAD
-# ==========================================================
-with tab2:
-    st.subheader("Upload CSV File for Batch Prediction")
-
-    uploaded_file = st.file_uploader("Upload CSV with the required feature columns", type=["csv"])
-
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        st.write("### Uploaded File Preview")
-        st.dataframe(df.head())
-
-        missing_cols = [col for col in feature_names if col not in df.columns]
-        if missing_cols:
-            st.error(f"❌ Missing required columns: {missing_cols}")
+    for feature in feature_names:
+        if feature in categorical_encoders:
+            data[feature] = st.selectbox(
+                feature.replace("_", " ").title(),
+                list(categorical_encoders[feature].keys())
+            )
         else:
-            df_encoded = encode_csv(df)
+            data[feature] = st.number_input(
+                feature.replace("_", " ").title(),
+                value=0.0
+            )
+    return data
 
-            if st.button("📊 Run Batch Predictions"):
-                raw_preds, labels = predict_batch(selected_model, df_encoded, selected_disease)
+# ==========================================================
+# ENCODE INPUTS
+# ==========================================================
+def encode_inputs(input_dict):
+    encoded = {}
 
-                df_results = df.copy()
-                df_results["Raw Prediction"] = raw_preds
-                df_results["Case Classification"] = labels
+    for key, value in input_dict.items():
+        if key in categorical_encoders:
+            encoded[key] = categorical_encoders[key][value]
+        else:
+            encoded[key] = value
 
-                st.success("Batch prediction completed successfully!")
-                st.write("### Prediction Results")
-                st.dataframe(df_results)
+    return encoded
 
-                csv_file = df_results.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="⬇️ Download Results CSV",
-                    data=csv_file,
-                    file_name="predictions_output.csv",
-                    mime="text/csv"
-                )
+# ==========================================================
+# PREDICTION FUNCTION
+# ==========================================================
+def make_prediction(model, df, disease):
+    raw_pred = model.predict(df)[0]
+    label = CASE_LABELS[disease].get(raw_pred, f"Unknown Class ({raw_pred})")
+    return raw_pred, label
+
+# ==========================================================
+# STREAMLIT UI
+# ==========================================================
+st.title("🩺 Disease Case Classification Prediction System")
+st.write("Predict classification for **Lassa Fever, Measles, Cholera & Typhoid Fever** using ML models.")
+
+# Model selection
+selected_disease = st.selectbox("Select Disease Model:", list(models.keys()))
+selected_model = models[selected_disease]
+
+# Show required features
+st.info(f"Model expects the following features: {list(selected_model.feature_names_in_)}")
+
+# Build input UI
+user_inputs = build_input_form(selected_model.feature_names_in_)
+encoded_data = encode_inputs(user_inputs)
+
+# Convert to DataFrame
+df = pd.DataFrame([encoded_data], columns=selected_model.feature_names_in_)
+
+# Predict button
+if st.button("🔍 Predict Case Classification"):
+    try:
+        numeric_pred, label_pred = make_prediction(selected_model, df, selected_disease)
+
+        st.success(f"🎯 **Predicted Case Classification:** {label_pred}")
+        st.caption(f"Model raw output: {numeric_pred}")
+
+    except Exception as e:
+        st.error("❌ Error occurred during prediction")
+        st.code(str(e))
