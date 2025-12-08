@@ -126,7 +126,7 @@ def make_prediction(model, input_df):
 # ============================================================
 # STREAMLIT UI
 # ============================================================
-st.title("🧠 Multi-Disease Case Classification System")
+st.title("🧠 MYCLO - EBONYI STATE Multi-Disease Case Classification System")
 st.subheader("Enter Patient Data (Numeric & Categorical)")
 
 # Select disease
