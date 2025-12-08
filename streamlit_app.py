@@ -3,7 +3,7 @@ import pandas as pd
 import joblib
 
 # ============================================================
-# LOAD RAW MODELS
+# LOAD MODELS (.joblib can be raw model or dict with 'model' key)
 # ============================================================
 lassa_model = joblib.load("lassa_xgb.joblib")
 measles_model = joblib.load("measles.joblib")
@@ -18,7 +18,7 @@ models = {
 }
 
 # ============================================================
-# FEATURE SCHEMA
+# FEATURE SCHEMA (for UI input only)
 # ============================================================
 feature_schema = {
     "Lassa Fever": {
@@ -82,16 +82,21 @@ CASE_LABELS = {
 }
 
 # ============================================================
-# ONE-HOT ENCODING FUNCTION TO MATCH MODEL FEATURES
+# ONE-HOT ENCODING TO MATCH MODEL FEATURES
 # ============================================================
 def encode_input_onehot(input_dict, schema, model):
+    # Unwrap dict-wrapped model if necessary
+    model_obj = model
+    if isinstance(model, dict) and "model" in model:
+        model_obj = model["model"]
+
     # Get model feature names
-    if hasattr(model, "get_booster"):  # XGBoost
-        model_features = model.get_booster().feature_names
-    elif hasattr(model, "feature_name_"):  # LightGBM
-        model_features = model.feature_name_
-    else:
-        model_features = list(input_dict.keys())  # sklearn models
+    if hasattr(model_obj, "get_booster"):  # XGBoost
+        model_features = model_obj.get_booster().feature_names
+    elif hasattr(model_obj, "feature_name_"):  # LightGBM
+        model_features = model_obj.feature_name_
+    else:  # sklearn models
+        model_features = list(input_dict.keys())
 
     # Start with all zeros
     encoded = dict.fromkeys(model_features, 0)
@@ -102,7 +107,6 @@ def encode_input_onehot(input_dict, schema, model):
             if feature in encoded:
                 encoded[feature] = float(value)
         elif isinstance(ftype, list):
-            # One-hot column
             col_name = f"{feature}_{value}"
             if col_name in encoded:
                 encoded[col_name] = 1
@@ -113,24 +117,25 @@ def encode_input_onehot(input_dict, schema, model):
 # PREDICTION FUNCTION
 # ============================================================
 def make_prediction(model, input_df):
-    raw = model.predict(input_df)[0]
-    return raw
+    # Unwrap dict model if needed
+    model_obj = model
+    if isinstance(model, dict) and "model" in model:
+        model_obj = model["model"]
+    return model_obj.predict(input_df)[0]
 
 # ============================================================
 # STREAMLIT UI
 # ============================================================
 st.title("🧠 Multi-Disease Case Classification System")
-st.subheader("Numeric & Categorical Inputs for Single Patient Prediction")
+st.subheader("Enter Patient Data (Numeric & Categorical)")
 
 # Select disease
 disease = st.selectbox("Select Disease Model", list(models.keys()))
 model = models[disease]
 schema = feature_schema[disease]
 
-# -------------------
-# Collect input values
-# -------------------
-st.sidebar.header("Enter Patient Data")
+# Sidebar: input values
+st.sidebar.header("Patient Data Input")
 input_data = {}
 for feature, ftype in schema.items():
     if ftype == "numeric":
@@ -138,12 +143,9 @@ for feature, ftype in schema.items():
     elif isinstance(ftype, list):
         input_data[feature] = st.sidebar.selectbox(feature, ftype)
 
-# -------------------
 # Predict button
-# -------------------
 if st.sidebar.button("Predict Case"):
     try:
-        # Encode input to match model features
         input_df = encode_input_onehot(input_data, schema, model)
         raw_pred = make_prediction(model, input_df)
         label = CASE_LABELS[disease][raw_pred]
