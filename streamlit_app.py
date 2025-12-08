@@ -101,6 +101,9 @@ def encode_input(input_dict, schema):
 
     return encoded
 
+st.write("Model expects:", model.feature_names_in_)
+st.write("Input columns:", list(df.columns))
+
 
 # ============================================================
 # PREDICTION FUNCTION
