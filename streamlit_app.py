@@ -3,7 +3,31 @@ import pandas as pd
 import joblib
 
 # ============================================================
-# LOAD MODELS (.joblib can be raw model or dict with 'model' key)
+# MOBILE-RESPONSIVE STYLING
+# ============================================================
+st.markdown("""
+<style>
+/* Make main container wider on mobile */
+.block-container {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    max-width: 100% !important;
+}
+
+/* Full-width input widgets */
+.stSelectbox, .stNumberInput, .stTextInput {
+    width: 100% !important;
+}
+
+/* Remove side padding */
+[data-testid="stSidebar"] {
+    display: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================================
+# LOAD MODELS
 # ============================================================
 lassa_model = joblib.load("lassa_xgb.joblib")
 measles_model = joblib.load("measles.joblib")
@@ -18,7 +42,7 @@ models = {
 }
 
 # ============================================================
-# FEATURE SCHEMA (for UI input only)
+# FEATURE SCHEMA
 # ============================================================
 feature_schema = {
     "Lassa Fever": {
@@ -82,30 +106,27 @@ CASE_LABELS = {
 }
 
 # ============================================================
-# ONE-HOT ENCODING TO MATCH MODEL FEATURES
+# ENCODER
 # ============================================================
 def encode_input_onehot(input_dict, schema, model):
-    # Unwrap dict-wrapped model if necessary
-    model_obj = model
-    if isinstance(model, dict) and "model" in model:
-        model_obj = model["model"]
+    model_obj = model["model"] if isinstance(model, dict) and "model" in model else model
 
-    # Get model feature names
-    if hasattr(model_obj, "get_booster"):  # XGBoost
+    if hasattr(model_obj, "get_booster"):
         model_features = model_obj.get_booster().feature_names
-    elif hasattr(model_obj, "feature_name_"):  # LightGBM
+    elif hasattr(model_obj, "feature_name_"):
         model_features = model_obj.feature_name_
-    else:  # sklearn models
+    else:
         model_features = list(input_dict.keys())
 
-    # Start with all zeros
     encoded = dict.fromkeys(model_features, 0)
 
     for feature, value in input_dict.items():
         ftype = schema[feature]
+
         if ftype == "numeric":
             if feature in encoded:
                 encoded[feature] = float(value)
+
         elif isinstance(ftype, list):
             col_name = f"{feature}_{value}"
             if col_name in encoded:
@@ -114,43 +135,47 @@ def encode_input_onehot(input_dict, schema, model):
     return pd.DataFrame([encoded])
 
 # ============================================================
-# PREDICTION FUNCTION
+# PREDICT
 # ============================================================
 def make_prediction(model, input_df):
-    # Unwrap dict model if needed
-    model_obj = model
-    if isinstance(model, dict) and "model" in model:
-        model_obj = model["model"]
+    model_obj = model["model"] if isinstance(model, dict) and "model" in model else model
     return model_obj.predict(input_df)[0]
 
 # ============================================================
-# STREAMLIT UI
+# UI TITLE
 # ============================================================
 st.title("🧠 MYCLO - EBONYI STATE Multi-Disease Case Classification System")
-st.subheader("Enter Patient Data (Numeric & Categorical)")
+st.subheader("Enter Patient Data Below")
 
-# Select disease
+# ============================================================
+# MAIN INPUT FORM (MOBILE FRIENDLY)
+# ============================================================
 disease = st.selectbox("Select Disease Model", list(models.keys()))
 model = models[disease]
 schema = feature_schema[disease]
 
-# Sidebar: input values
-st.sidebar.header("Patient Data Input")
-input_data = {}
-for feature, ftype in schema.items():
-    if ftype == "numeric":
-        input_data[feature] = st.sidebar.number_input(feature, value=0.0)
-    elif isinstance(ftype, list):
-        input_data[feature] = st.sidebar.selectbox(feature, ftype)
+with st.form("input_form"):
+    st.header("Patient Data Input")
 
-# Predict button
-if st.sidebar.button("Predict Case"):
+    input_data = {}
+
+    for feature, ftype in schema.items():
+        if ftype == "numeric":
+            input_data[feature] = st.number_input(feature, value=0.0)
+        else:
+            input_data[feature] = st.selectbox(feature, ftype)
+
+    submit = st.form_submit_button("Predict Case")
+
+# ============================================================
+# RESULTS
+# ============================================================
+if submit:
     try:
         input_df = encode_input_onehot(input_data, schema, model)
         raw_pred = make_prediction(model, input_df)
         label = CASE_LABELS[disease][raw_pred]
 
-        # Colored result card
         color_class = {
             "Confirmed Case": "#27ae60",
             "Probable Case": "#f39c12",
@@ -159,9 +184,12 @@ if st.sidebar.button("Predict Case"):
         }.get(label, "#7f8c8d")
 
         st.markdown(
-            f'<div style="padding:20px; border-radius:12px; color:white; background-color:{color_class}; text-align:center; font-size:22px;">Prediction: <b>{label}</b></div>',
+            f'<div style="padding:20px; border-radius:12px; color:white; '
+            f'background-color:{color_class}; text-align:center; font-size:22px;">'
+            f'Prediction: <b>{label}</b></div>',
             unsafe_allow_html=True
         )
+
         st.caption(f"Raw Model Output: {raw_pred}")
 
     except Exception as e:
