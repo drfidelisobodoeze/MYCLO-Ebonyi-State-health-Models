@@ -1,8 +1,16 @@
 import streamlit as st
+import pandas as pd
 import joblib
 
-# Load the models
-lassa_xgb = joblib.load("lassa_xgb.joblib")  # Ensure correct path here
+# =============================
+# Load ML Models
+# =============================
+
+# IMPORTANT:
+# If each .joblib contains ONLY the model, then add feature lists manually below.
+# If they contain {"model": model, "features": [...]}, code will detect automatically.
+
+lassa_xgb = joblib.load("lassa_xgb.joblib")
 measles_model = joblib.load("measles.joblib")
 cholera_model = joblib.load("cholera_lgb.joblib")
 yellow_fever_model = joblib.load("yellow-fever.joblib")
@@ -14,121 +22,105 @@ models = {
     "Yellow Fever": yellow_fever_model
 }
 
-# Function to safely extract top 10 features
-def get_top_features(model):
+# =============================
+# → MANUAL FEATURE LIST (Edit These)
+# If your .joblib files DO NOT contain metadata
+# Update these lists to match your training features
+# =============================
+
+manual_features = {
+    "Lassa Fever": ["age", "temperature", "headache", "bleeding", "vomiting", "abdominal_pain",
+                    "diarrhea", "weakness", "protein_level", "platelet_count"],
+    
+    "Measles": ["age", "fever", "rash", "cough", "runny_nose", "conjunctivitis",
+                "koplik_spots", "travel_history", "exposure", "vaccination_status"],
+    
+    "Cholera": ["age", "watery_diarrhea", "vomiting", "dehydration", "heart_rate",
+                "temperature", "bp_systolic", "bp_diastolic", "sodium", "chloride"],
+    
+    "Yellow Fever": ["age", "fever", "headache", "jaundice", "muscle_pain",
+                     "vomiting", "bleeding", "liver_function", "platelet_count", "exposure"]
+}
+
+# =============================
+#AUTO-DETECT FEATURES FROM MODEL
+# =============================
+def get_top_features(model, disease):
+    # If model is dict with features
     if isinstance(model, dict) and "features" in model:
         return model["features"]
-    return []
-# Helper function to make predictions
+
+    # Fallback to manual list
+    return manual_features[disease]
+
+
+# =============================
+# Prediction Function
+# =============================
 def make_prediction(model, features, input_data):
-    model_instance = model['model']
-    input_df = pd.DataFrame([input_data], columns=features)
-    prediction = model_instance.predict(input_df)
+
+    # If joblib contains {"model": model, "features": [...]}
+    if isinstance(model, dict) and "model" in model:
+        model = model["model"]
+
+    # Convert input to DataFrame
+    df = pd.DataFrame([input_data], columns=features)
+
+    # Predict
+    prediction = model.predict(df)
     return prediction[0]
 
-import streamlit as st
-
-# Custom CSS styles for a mobile-friendly design
+# =============================
+# UI STYLING
+# =============================
 st.markdown("""
-    <style>
-    /* Base styling for the body */
-    body {
-        background-color: #f4f4f9;
-        font-family: 'Roboto', sans-serif;
-    }
-
-    /* Adjust the layout for smaller screens (mobile devices) */
-    @media screen and (max-width: 600px) {
-        .main {
-            max-width: 100%;
-            margin: 0;
-            padding: 10px;
-        }
-
-        h1 {
-            font-size: 2em;
-            text-align: center;
-        }
-
-        /* Mobile-friendly input field sizes */
-        .stNumberInput input, .stSelectbox select, .stButton button {
-            width: 100%;
-            font-size: 14px;
-            padding: 10px;
-        }
-
-        /* Make the sidebar more compact on mobile */
-        .sidebar .sidebar-content {
-            padding: 10px;
-        }
-    }
-
-    /* Desktop view styling (large screens) */
-    @media screen and (min-width: 601px) {
-        .main {
-            max-width: 800px;
-            margin: auto;
-        }
-
-        h1 {
-            font-size: 2.5em;
-            font-weight: 600;
-            text-align: center;
-            color: #333;
-        }
-
-        .stSelectbox select {
-            padding: 10px;
-            font-size: 16px;
-        }
-
-        .stButton button {
-            background-color: #4CAF50;
-            color: white;
-            border-radius: 5px;
-            padding: 10px;
-            font-size: 16px;
-        }
-    }
-
-    /* Styling for prediction results */
-    .stSuccess {
-        background-color: #e8f5e9;
-        color: #388e3c;
-        border-radius: 5px;
+<style>
+body {
+    background-color: #f4f4f9;
+    font-family: 'Roboto', sans-serif;
+}
+@media screen and (max-width: 600px) {
+    .main {
+        max-width: 100%;
         padding: 10px;
-        text-align: center;
     }
-
-    </style>
+    h1 { font-size: 1.6em; text-align: center; }
+    .stNumberInput input, .stSelectbox select, .stButton button {
+        width: 100%;
+        padding: 10px;
+    }
+}
+</style>
 """, unsafe_allow_html=True)
 
-# The rest of your Streamlit app goes here...
+# =============================
+# Streamlit APP
+# =============================
 
-# Streamlit app interface
-    
-st.title("MYCLO-Ebonyi-State-health-Models: Multiple Infectious Diseases Prediction using ensemble models")
-st.title("Disease Case Classification Prediction App")
+st.title("🧪 MYCLO Ebonyi State Health ML Models")
+st.subheader("Multiple Infectious Diseases Case Classification Prediction App")
 
-disease = st.selectbox("Select Disease", list(models.keys()))
+# Select disease
+disease = st.selectbox("Select Disease Model", list(models.keys()))
 
 selected_model = models[disease]
 
-# Display top 10 features for the selected disease
-top_features = get_top_features(selected_model)
+# Get features
+top_features = get_top_features(selected_model, disease)
 
-if top_features:
-    st.write(f"### Top 10 Features for {disease}")
-    st.write(top_features)
+st.write(f"### 🔍 Required Features for {disease}")
+st.write(top_features)
 
-# Prediction form
+# Sidebar inputs
 input_data = {}
-for feature in top_features:
-    input_data[feature] = st.sidebar.number_input(f"Enter {feature}", value=0.0)
+with st.sidebar:
+    st.header("Enter Input Values")
+    for feature in top_features:
+        input_data[feature] = st.number_input(f"{feature}", value=0.0)
 
-if st.sidebar.button("Predict"):
-    if not top_features:
-        st.error("No feature list found for the selected model.")
-    else:
-        prediction = make_prediction(selected_model, top_features, input_data)
-        st.success(f"Prediction for {disease}: {prediction}")
+    predict_btn = st.button("Predict Case Classification")
+
+# Perform prediction
+if predict_btn:
+    prediction = make_prediction(selected_model, top_features, input_data)
+    st.success(f"### ✅ Prediction for **{disease}**: {prediction}")
