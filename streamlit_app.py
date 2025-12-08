@@ -3,25 +3,29 @@ import pandas as pd
 import joblib
 
 # ============================================================
-# MOBILE-RESPONSIVE STYLING
+# RESPONSIVE LAYOUT (60% DESKTOP WIDTH, FULL MOBILE WIDTH)
 # ============================================================
 st.markdown("""
 <style>
-/* Make main container wider on mobile */
+/* Desktop: center content and restrict width */
 .block-container {
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
-    max-width: 100% !important;
+    max-width: 60%;
+    margin-left: auto;
+    margin-right: auto;
 }
 
-/* Full-width input widgets */
+/* Mobile: full width */
+@media only screen and (max-width: 768px) {
+    .block-container {
+        max-width: 100% !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
+}
+
+/* Inputs full width */
 .stSelectbox, .stNumberInput, .stTextInput {
-    width: 60% !important;
-}
-
-/* Remove side padding */
-[data-testid="stSidebar"] {
-    display: none;
+    width: 100% !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -57,6 +61,7 @@ feature_schema = {
         "protein_level": "numeric",
         "platelet_count": "numeric"
     },
+
     "Measles": {
         "age": "numeric",
         "fever": ["None", "Mild", "High"],
@@ -69,6 +74,7 @@ feature_schema = {
         "exposure": ["Yes", "No"],
         "vaccination_status": ["Vaccinated", "Unvaccinated"]
     },
+
     "Cholera": {
         "age": "numeric",
         "watery_diarrhea": ["Yes", "No"],
@@ -81,6 +87,7 @@ feature_schema = {
         "sodium": "numeric",
         "chloride": "numeric"
     },
+
     "Yellow Fever": {
         "age": "numeric",
         "fever": ["None", "Mild", "High"],
@@ -148,7 +155,7 @@ st.title("🧠 MYCLO - EBONYI STATE Multi-Disease Case Classification System")
 st.subheader("Enter Patient Data Below")
 
 # ============================================================
-# MAIN INPUT FORM (MOBILE FRIENDLY)
+# INPUT FORM
 # ============================================================
 disease = st.selectbox("Select Disease Model", list(models.keys()))
 model = models[disease]
@@ -168,7 +175,7 @@ with st.form("input_form"):
     submit = st.form_submit_button("Predict Case")
 
 # ============================================================
-# RESULTS
+# RESULTS WITH PINK BORDER & SHADOW
 # ============================================================
 if submit:
     try:
@@ -176,17 +183,32 @@ if submit:
         raw_pred = make_prediction(model, input_df)
         label = CASE_LABELS[disease][raw_pred]
 
-        color_class = {
+        # Background color for prediction type
+        bg_color = {
             "Confirmed Case": "#27ae60",
             "Probable Case": "#f39c12",
             "Suspected Case": "#e67e22",
             "Not a Case": "#c0392b"
         }.get(label, "#7f8c8d")
 
+        # Pink border color and subtle shadow
+        border_color = "#ff69b4"
+        shadow_style = "box-shadow: 3px 3px 12px rgba(0,0,0,0.2);"
+
         st.markdown(
-            f'<div style="padding:20px; border-radius:12px; color:white; '
-            f'background-color:{color_class}; text-align:center; font-size:22px;">'
-            f'Prediction: <b>{label}</b></div>',
+            f'''
+            <div style="
+                padding:20px;
+                border-radius:12px;
+                color:white;
+                background-color:{bg_color};
+                border: 3px solid {border_color};
+                {shadow_style}
+                text-align:center;
+                font-size:22px;">
+                Prediction: <b>{label}</b>
+            </div>
+            ''',
             unsafe_allow_html=True
         )
 
