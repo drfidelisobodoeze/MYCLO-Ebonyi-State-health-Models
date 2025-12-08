@@ -4,31 +4,27 @@ import joblib
 
 # ============================================================
 # MOBILE-RESPONSIVE STYLING
-# ============================================================st.markdown("""
+# ============================================================
+st.markdown("""
 <style>
-/* Center the app and limit width to 60% on desktop */
+/* Make main container wider on mobile */
 .block-container {
-    max-width: 60%;
-    margin-left: auto;
-    margin-right: auto;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    max-width: 100% !important;
 }
 
-/* But expand to full width on screens below 768px (mobile) */
-@media only screen and (max-width: 768px) {
-    .block-container {
-        max-width: 100% !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-    }
-}
-
-/* Make all inputs full-width */
+/* Full-width input widgets */
 .stSelectbox, .stNumberInput, .stTextInput {
     width: 100% !important;
 }
+
+/* Remove side padding */
+[data-testid="stSidebar"] {
+    display: none;
+}
 </style>
 """, unsafe_allow_html=True)
-
 
 # ============================================================
 # LOAD MODELS
