@@ -3,18 +3,15 @@ import pandas as pd
 import joblib
 
 # ============================================================
-# RESPONSIVE LAYOUT (60% DESKTOP WIDTH, FULL MOBILE WIDTH)
+# RESPONSIVE LAYOUT
 # ============================================================
 st.markdown("""
 <style>
-/* Desktop: center content and restrict width */
 .block-container {
     max-width: 60%;
     margin-left: auto;
     margin-right: auto;
 }
-
-/* Mobile: full width */
 @media only screen and (max-width: 768px) {
     .block-container {
         max-width: 100% !important;
@@ -22,8 +19,6 @@ st.markdown("""
         padding-right: 1rem !important;
     }
 }
-
-/* Inputs full width */
 .stSelectbox, .stNumberInput, .stTextInput {
     width: 100% !important;
 }
@@ -59,10 +54,8 @@ feature_schema = {
         "Diarrhea": ["Yes", "No"],
         "General_weakness": ["Yes", "No"],
         "Chest_pain": ["Yes", "No"],
-        "Latest_sample_final_laboratory_result": ["Positive", "Negative","Indeterminate"]           
-        
+        "Latest_sample_final_laboratory_result": ["Positive", "Negative","Indeterminate"]
     },
-
     "Measles": {
         "age": "numeric",
         "fever": ["None", "Mild", "High"],
@@ -75,7 +68,6 @@ feature_schema = {
         "exposure": ["Yes", "No"],
         "vaccination_status": ["Vaccinated", "Unvaccinated"]
     },
-
     "Cholera": {
         "age": "numeric",
         "watery_diarrhea": ["Yes", "No"],
@@ -88,7 +80,6 @@ feature_schema = {
         "sodium": "numeric",
         "chloride": "numeric"
     },
-
     "Yellow Fever": {
         "age": "numeric",
         "fever": ["None", "Mild", "High"],
@@ -134,7 +125,6 @@ def encode_input_onehot(input_dict, schema, model):
         if ftype == "numeric":
             if feature in encoded:
                 encoded[feature] = float(value)
-
         elif isinstance(ftype, list):
             col_name = f"{feature}_{value}"
             if col_name in encoded:
@@ -148,6 +138,25 @@ def encode_input_onehot(input_dict, schema, model):
 def make_prediction(model, input_df):
     model_obj = model["model"] if isinstance(model, dict) and "model" in model else model
     return model_obj.predict(input_df)[0]
+
+# ============================================================
+# CLINICAL RULES FOR LASSA FEVER
+# ============================================================
+def lassa_clinical_rules(input_data):
+    """
+    Overrides ML prediction based on clinical rules:
+    - Lab positive -> Confirmed Case
+    - Fever > 38C -> Suspected Case
+    """
+    temp = input_data.get("Current_body_temperature_in___C", 37)
+    lab_result = input_data.get("Latest_sample_final_laboratory_result", "Negative").upper()
+
+    if lab_result == "POSITIVE":
+        return "Confirmed Case"
+    elif temp > 38:
+        return "Suspected Case"
+    else:
+        return None  # follow ML prediction
 
 # ============================================================
 # UI TITLE
@@ -164,7 +173,6 @@ schema = feature_schema[disease]
 
 with st.form("input_form"):
     st.header("Patient Data Input")
-
     input_data = {}
 
     for feature, ftype in schema.items():
@@ -176,7 +184,7 @@ with st.form("input_form"):
     submit = st.form_submit_button("Predict Case")
 
 # ============================================================
-# RESULTS WITH PINK BORDER & SHADOW
+# RESULTS WITH CLINICAL RULES
 # ============================================================
 if submit:
     try:
@@ -184,13 +192,21 @@ if submit:
         raw_pred = make_prediction(model, input_df)
         label = CASE_LABELS[disease][raw_pred]
 
+        # Apply clinical rules for Lassa Fever
+        if disease == "Lassa Fever":
+            rule_override = lassa_clinical_rules(input_data)
+            final_label = rule_override if rule_override else label
+        else:
+            final_label = label
+            rule_override = None
+
         # Background color for prediction type
         bg_color = {
             "Confirmed Case": "#27ae60",
             "Probable Case": "#f39c12",
             "Suspected Case": "#e67e22",
             "Not a Case": "#c0392b"
-        }.get(label, "#7f8c8d")
+        }.get(final_label, "#7f8c8d")
 
         # Pink border color and subtle shadow
         border_color = "#ff69b4"
@@ -207,13 +223,16 @@ if submit:
                 {shadow_style}
                 text-align:center;
                 font-size:22px;">
-                Prediction: <b>{label}</b>
+                Final Prediction: <b>{final_label}</b>
             </div>
             ''',
             unsafe_allow_html=True
         )
 
-        st.caption(f"Raw Model Output: {raw_pred}")
+        # Show ML vs Clinical override
+        st.caption(f"ML Model Prediction: {label}")
+        if rule_override:
+            st.caption(f"Clinical Rule Override: {rule_override}")
 
     except Exception as e:
         st.error(f"Prediction failed: {e}")
