@@ -199,7 +199,9 @@ def measles_clinical_rules(input_data):
 # ============================================================
 # UI
 # ============================================================
-st.title("🩺 MYCLO - EBONYI STATE Multi-Disease Case Classification System")
+st.title("🩺 MYCLO - EBONYI STATE Multiple-Disease Classification/Prediction System")
+st.subheader("PhD Research Work by Calister Nnenna Ogbonna-Mbah")
+
 st.subheader("Enter Patient Data Below")
 
 # Ensure models list is not empty before proceeding
