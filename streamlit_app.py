@@ -53,7 +53,7 @@ feature_schema = {
         "Fever": ["Yes", "No"],
         "Current_body_temperature_in___C": "numeric",
         "Abdominal_pain": ["Yes", "No"],
-        "Bleeding_or_brushing": ["Yes", "No"],
+        "Bleeding_or_bruising": ["Yes", "No"],
         "Vomiting": ["Yes", "No"],
         "Sore_throat": ["Yes", "No"],
         "Diarrhea": ["Yes", "No"],
