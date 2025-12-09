@@ -176,7 +176,7 @@ def lassa_clinical_rules(input_data):
 # ============================================================
 # UI
 # ============================================================
-st.title("PhD Research by Calister Nnena Ogbonna-Mbah: MYCLO - EBONYI STATE Multi-Diseases Case Classification Modeling System")
+st.title("PhD Research by Calister Nnenna Ogbonna-Mbah: MYCLO - EBONYI STATE Multi-Diseases Case Classification/Predictive Modeling System")
 st.subheader("Enter Patient Data Below")
 
 disease = st.selectbox("Select Disease Model", list(models.keys()))
