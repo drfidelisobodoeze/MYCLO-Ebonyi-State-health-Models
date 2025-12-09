@@ -27,8 +27,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Global variables for Cholera model metadata (will be populated on load)
+CHOLERA_FEATURES = []
+CHOLERA_TARGET_MAP = {}
+
 # ============================================================
-# LOAD MODELS (MODIFIED)
+# LOAD MODELS
 # ============================================================
 @st.cache_resource
 def load_generic_model(path):
@@ -47,11 +51,10 @@ try:
     yellow_fever_model = load_generic_model("yellow-fever.joblib")
     
     # Load the specific Cholera joblib file (which contains a dict)
-    # NOTE: Assuming 'cholera.joblib' is the file name you want to use.
     cholera_data = load_cholera_model("cholera.joblib")
     cholera_model = cholera_data['model']
     
-    # Store Cholera metadata globally for the encoder/decoder
+    # Populate global Cholera metadata
     CHOLERA_FEATURES = cholera_data['features']
     CHOLERA_TARGET_MAP = cholera_data['target_map']
     
@@ -71,7 +74,7 @@ except Exception as e:
 
 
 # ============================================================
-# FEATURE SCHEMA (MODIFIED FOR CHOLERA)
+# FEATURE SCHEMA (UPDATED FOR CHOLERA)
 # ============================================================
 feature_schema = {
     "Lassa Fever": {
@@ -128,8 +131,6 @@ feature_schema = {
 # ============================================================
 # CASE LABELS
 # ============================================================
-# NOTE: The Cholera case labels here are redundant since we use CHOLERA_TARGET_MAP, 
-# but we keep them for consistency with the original code structure.
 CASE_LABELS = {
     "Lassa Fever": {0:"Not a Case", 1:"Suspected Case", 2:"Confirmed Case"},
     "Measles":     {0:"Not a Case", 1:"Suspected Case", 2:"Probable Case", 3:"Confirmed Case"},
@@ -141,6 +142,7 @@ CASE_LABELS = {
 # ENCODER (MODIFIED)
 # ============================================================
 def encode_input_onehot(input_dict, schema, model, disease):
+    
     # --- CHOLERA SPECIFIC ENCODER LOGIC ---
     if disease == "Cholera":
         # Use the exact feature list (including OHE names) saved in the joblib file
@@ -165,7 +167,7 @@ def encode_input_onehot(input_dict, schema, model, disease):
                 try:
                     encoded[feature] = float(value)
                 except ValueError:
-                    pass # Keep 0 if conversion fails
+                    pass
         elif isinstance(ftype, list):
             # One-hot encoding construction: 'FeatureName_Value'
             col_name = f"{feature}_{value}"
@@ -227,6 +229,54 @@ def measles_clinical_rules(input_data):
         return None
 
 # ============================================================
+# CHOLERA CLINICAL RULES (FINAL VERSION)
+# ============================================================
+def cholera_clinical_rules(input_data):
+    """
+    Implements a strict Confirmed Case definition for Cholera, 
+    excluding body temperature:
+    1. Watery Diarrhea = 'Yes'
+    2. Vomiting = 'Yes'
+    3. Dehydration = 'Yes'
+    4. Fast Heart Rate (Tachycardia) = 'Yes'
+    5. Vaccination status = 'Unvaccinated'
+    """
+    
+    # 1. Extract key inputs
+    diarrhea = input_data.get("Diarrhea", "No")
+    vomiting = input_data.get("Vomiting", "No")
+    dehydration = input_data.get("Dehydration", "No") 
+    tachycardia = input_data.get("Fast heart rate (Tachycardia)", "No")
+    vaccination = input_data.get("Vaccination status", "Unvaccinated")
+    
+    # Check if the case is strictly positive across all required criteria (excluding temp)
+    all_positive_symptoms = (
+        diarrhea == "Yes" and
+        vomiting == "Yes" and
+        dehydration == "Yes" and
+        tachycardia == "Yes"
+    )
+    
+    is_unvaccinated = (vaccination == "Unvaccinated")
+
+    # 1. CONFIRMED CASE RULE (Strict combination)
+    if all_positive_symptoms and is_unvaccinated:
+        return "Confirmed Case"
+        
+    # 2. NOT A CASE RULE (If all key symptoms are negative AND vaccinated)
+    elif (diarrhea == "No" and vomiting == "No" and dehydration == "No") and (vaccination == "Vaccinated"):
+        return "Not a Case"
+
+    # 3. SUSPECTED CASE RULE (Basic definition for non-extreme cases)
+    elif diarrhea == "Yes" and vomiting == "Yes":
+        return "Suspected Case"
+
+    # 4. Fallback to ML Prediction
+    else:
+        return None 
+
+
+# ============================================================
 # UI
 # ============================================================
 st.title("🩺 MYCLO - EBONYI STATE Multiple-Disease Classification/Prediction System")
@@ -251,7 +301,7 @@ if models:
         for i, (feature, ftype) in enumerate(feature_list):
             col = cols[i % 2] # Cycle between the two columns
             with col:
-                # Replace the complex temperature name for UI clarity
+                # Replace underscores and special chars for UI clarity
                 ui_feature_name = feature.replace('___C', '°C').replace('_', ' ')
                 
                 if ftype == "numeric":
@@ -287,8 +337,11 @@ if submit:
             rule_override = lassa_clinical_rules(input_data)
         elif disease == "Measles":
             rule_override = measles_clinical_rules(input_data)
+        elif disease == "Cholera":
+            # Apply new Cholera clinical rule
+            rule_override = cholera_clinical_rules(input_data)
         else:
-            # Cholera and Yellow Fever prediction relies solely on ML model (no explicit clinical rules provided)
+            # Yellow Fever prediction relies solely on ML model
             rule_override = None
 
         final_label = rule_override if rule_override else label
@@ -299,7 +352,8 @@ if submit:
             "Probable Case": "#f39c12",
             "Suspected Case": "#e67e22",
             "Not a Case": "#95a5a6",
-            "Confirmed case": "#27ae60", # Cholera-specific keys
+            # Include lowercase keys for Cholera target map output if necessary
+            "Confirmed case": "#27ae60",
             "Probable case": "#f39c12",
             "Suspect case": "#e67e22",
             "Not a case": "#95a5a6"
@@ -308,7 +362,7 @@ if submit:
         border_color = "#ff69b4"
         shadow_style = "box-shadow: 3px 3px 12px rgba(0,0,0,0.2);"
 
-        # Display the result (Completed the missing HTML block)
+        # Display the result 
         st.markdown("## 📊 Classification Result")
         st.markdown(f"""
         <div style='
