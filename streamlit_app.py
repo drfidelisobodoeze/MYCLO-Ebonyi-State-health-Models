@@ -33,7 +33,7 @@ st.markdown("""
 # ============================================================
 # LOAD MODELS
 # ============================================================
-lassa_model = joblib.load("lassa_xgb.joblib")
+lassa_model = joblib.load("lassa_xgb_9features.joblib")
 measles_model = joblib.load("measles.joblib")
 cholera_model = joblib.load("cholera_lgb.joblib")
 yellow_fever_model = joblib.load("yellow-fever.joblib")
