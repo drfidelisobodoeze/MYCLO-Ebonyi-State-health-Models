@@ -71,12 +71,7 @@ feature_schema = {
         "travel_history": ["Yes", "No"],
         "exposure": ["Yes", "No"],
         "vaccination_status": ["Vaccinated", "Unvaccinated"]
-
-
-        cough", "runny_nose", "conjunctivitis", "koplik_spots",
-                        "travel_history", "exposure
-
-            
+          
     },
     "Cholera": {
         "age": "numeric",
