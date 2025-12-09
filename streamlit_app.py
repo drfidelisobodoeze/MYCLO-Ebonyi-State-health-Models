@@ -50,16 +50,17 @@ models = {
 # ============================================================
 feature_schema = {
     "Lassa Fever": {
-        "age": "numeric",
-        "temperature": "numeric",
-        "headache": ["Yes", "No"],
-        "bleeding": ["Yes", "No"],
-        "vomiting": ["Yes", "No"],
-        "abdominal_pain": ["Yes", "No"],
-        "diarrhea": ["Yes", "No"],
-        "weakness": ["Yes", "No"],
-        "protein_level": "numeric",
-        "platelet_count": "numeric"
+        "Fever": ["Yes", "No"],
+        "Current_body_temperature_in___C": "numeric",
+        "Abdominal_pain": ["Yes", "No"],
+        "bleeding_or_brushing": ["Yes", "No"],
+        "Vomiting": ["Yes", "No"],
+        "Sore_throat": ["Yes", "No"],
+        "Diarrhea": ["Yes", "No"],
+        "General_weakness": ["Yes", "No"],
+        "chest_pain": ["Yes", "No"],
+        "Latest_sample_final_laboratory_result": ["Positive", "Negative","Indeterminate"]           
+        
     },
 
     "Measles": {
