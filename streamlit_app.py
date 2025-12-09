@@ -235,4 +235,4 @@ if submit:
         }.get(final_label, "#7f8c8d")
 
         border_color = "#ff69b4"
-        shadow_style = "box-shadow: 3px 3px 12px rgba(0,0,0,0.2);
+        shadow_style = "box-shadow: 3px 3px 12px rgba(0,0,0,0.2)";
