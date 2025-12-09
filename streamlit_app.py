@@ -239,9 +239,9 @@ if submit:
             unsafe_allow_html=True
         )
 
-        st.caption(f"ML Model Prediction: {label}")
-        if rule_override:
-            st.caption(f"Clinical Rule Override: {rule_override}")
+     # ============================================================   st.caption(f"ML Model Prediction: {label}")
+     # ============================================================   if rule_override:
+     # ============================================================       st.caption(f"Clinical Rule Override: {rule_override}")
 
     except Exception as e:
         st.error(f"Prediction failed: {e}")
