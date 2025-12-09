@@ -71,7 +71,6 @@ feature_schema = {
         "travel_history": ["Yes", "No"],
         "exposure": ["Yes", "No"],
         "vaccination_status": ["Vaccinated", "Unvaccinated"]
-          
     },
     "Cholera": {
         "age": "numeric",
@@ -143,24 +142,12 @@ def make_prediction(model, input_df):
 # LASSA FEVER CLINICAL RULES
 # ============================================================
 def lassa_clinical_rules(input_data):
-    """
-    Overrides ML prediction:
-    - Lab Positive -> Confirmed Case
-    - Fever > 38C -> Suspected Case
-    - Lab Negative + all other symptoms 'No' -> Not a Case
-    """
     temp = input_data.get("Current_body_temperature_in___C", 37)
     lab_result = input_data.get("Latest_sample_final_laboratory_result", "Negative").upper()
 
     categorical_features = [
-        "Fever",
-        "Abdominal_pain",
-        "Bleeding_or_bruising",
-        "Vomiting",
-        "Sore_throat",
-        "Diarrhea",
-        "General_weakness",
-        "Chest_pain"
+        "Fever","Abdominal_pain","Bleeding_or_bruising","Vomiting",
+        "Sore_throat","Diarrhea","General_weakness","Chest_pain"
     ]
     all_no = all(input_data.get(f, "No") == "No" for f in categorical_features)
 
@@ -174,9 +161,36 @@ def lassa_clinical_rules(input_data):
         return None
 
 # ============================================================
+# MEASLES CLINICAL RULES
+# ============================================================
+def measles_clinical_rules(input_data):
+    """
+    Overrides ML prediction:
+    - koplik_spots == Yes AND conjunctivitis == Yes AND other symptoms present -> Confirmed Case
+    - vaccination_status == Vaccinated OR all symptoms 'No'/'Absent' -> Not a Case
+    """
+    koplik = input_data.get("koplik_spots", "No")
+    conjunctivitis = input_data.get("conjunctivitis", "No")
+    vaccination = input_data.get("vaccination_status", "Unvaccinated")
+
+    # Check if all categorical features are "No"/"Absent"/"None"
+    categorical_features = [
+        "fever","rash","cough","runny_nose","conjunctivitis",
+        "koplik_spots","travel_history","exposure"
+    ]
+    all_negative = all(input_data.get(f) in ["No","Absent","None"] for f in categorical_features)
+
+    if vaccination == "Vaccinated" or all_negative:
+        return "Not a Case"
+    elif koplik == "Yes" and conjunctivitis == "Yes":
+        return "Confirmed Case"
+    else:
+        return None
+
+# ============================================================
 # UI
 # ============================================================
-st.title("🧠 MYCLO - EBONYI STATE Multi-Disease Case Classification System")
+st.title("🩺 MYCLO - EBONYI STATE Multi-Disease Case Classification System")
 st.subheader("Enter Patient Data Below")
 
 disease = st.selectbox("Select Disease Model", list(models.keys()))
@@ -202,13 +216,15 @@ if submit:
         raw_pred = make_prediction(model, input_df)
         label = CASE_LABELS[disease][raw_pred]
 
-        # Apply clinical rules for Lassa Fever
+        # Apply clinical rules
         if disease == "Lassa Fever":
             rule_override = lassa_clinical_rules(input_data)
-            final_label = rule_override if rule_override else label
+        elif disease == "Measles":
+            rule_override = measles_clinical_rules(input_data)
         else:
-            final_label = label
             rule_override = None
+
+        final_label = rule_override if rule_override else label
 
         # Color mapping
         bg_color = {
@@ -219,28 +235,4 @@ if submit:
         }.get(final_label, "#7f8c8d")
 
         border_color = "#ff69b4"
-        shadow_style = "box-shadow: 3px 3px 12px rgba(0,0,0,0.2);"
-
-        st.markdown(
-            f'''
-            <div style="
-                padding:20px;
-                border-radius:12px;
-                color:white;
-                background-color:{bg_color};
-                border: 3px solid {border_color};
-                {shadow_style}
-                text-align:center;
-                font-size:22px;">
-                Final Prediction: <b>{final_label}</b>
-            </div>
-            ''',
-            unsafe_allow_html=True
-        )
-
-        st.caption(f"ML Model Prediction: {label}")
-        if rule_override:
-            st.caption(f"Clinical Rule Override: {rule_override}")
-
-    except Exception as e:
-        st.error(f"Prediction failed: {e}")
+        shadow_style = "box-shadow: 3px 3px 12px rgba(0,0,0,0.2);
