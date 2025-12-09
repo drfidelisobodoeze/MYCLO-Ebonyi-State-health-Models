@@ -278,9 +278,9 @@ if submit:
         '>
             CLASSIFICATION: {final_label}
         </div>
-        <div style='margin-top: 15px; font-size: 14px; color: #555; text-align: center;'>
-            ML Model Prediction: **{label}** | Overridden by Clinical Rule: **{'Yes' if rule_override else 'No'}**
-        </div>
+         #<div style='margin-top: 15px; font-size: 14px; color: #555; text-align: center;'>
+          #   ML Model Prediction: **{label}** | Overridden by Clinical Rule: **{'Yes' if rule_override else 'No'}**
+        # </div>
         """, unsafe_allow_html=True)
         
         # Optional: Show input data for verification
