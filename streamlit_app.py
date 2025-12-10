@@ -4,6 +4,12 @@ import joblib
 import numpy as np
 from collections import OrderedDict
 
+# Global variables for model metadata (will be populated on load)
+CHOLERA_FEATURES = []
+CHOLERA_TARGET_MAP = {}
+YF_FEATURES = []
+YF_TARGET_MAP = {}
+
 # ============================================================
 # RESPONSIVE LAYOUT
 # ============================================================
@@ -27,36 +33,42 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Global variables for Cholera model metadata (will be populated on load)
-CHOLERA_FEATURES = []
-CHOLERA_TARGET_MAP = {}
-
 # ============================================================
-# LOAD MODELS
+# LOAD MODELS (FIXED FOR TUPLE ISSUE & METADATA)
 # ============================================================
 @st.cache_resource
 def load_generic_model(path):
-    # Loads simple model objects (assumed for Lassa, Measles, YF)
-    return joblib.load(path)
+    # Loads Lassa/Measles model, handling case where it's saved as a tuple or list.
+    loaded_data = joblib.load(path)
+    
+    # FIX: Check if the loaded data is a tuple/list and extract the model (element 0)
+    if isinstance(loaded_data, (tuple, list)):
+        return loaded_data[0]
+    
+    # Check if the loaded data is a dictionary (in case it was saved like Cholera/YF)
+    if isinstance(loaded_data, dict) and 'model' in loaded_data:
+        return loaded_data['model']
+
+    # Otherwise, assume the loaded object is the model itself
+    return loaded_data
 
 @st.cache_resource
-def load_cholera_model(path):
-    # Loads the dictionary containing the LGBM model and its metadata
-    return joblib.load(path)
+def load_metadata_model(path, feature_list_global, target_map_global):
+    # Loads dictionary containing model and metadata (for Cholera, YF)
+    data = joblib.load(path)
+    # Populate global metadata variables
+    globals()[feature_list_global] = data['features']
+    globals()[target_map_global] = data['target_map']
+    return data['model']
 
 try:
-    # Load non-Cholera models (assumed to be raw model objects)
+    # Load non-metadata models (Lassa, Measles) - uses the FIXED function
     lassa_model = load_generic_model("lassa_xgb_9features.joblib")
     measles_model = load_generic_model("measles.joblib")
-    yellow_fever_model = load_generic_model("yellow-fever.joblib")
     
-    # Load the specific Cholera joblib file (which contains a dict)
-    cholera_data = load_cholera_model("cholera.joblib")
-    cholera_model = cholera_data['model']
-    
-    # Populate global Cholera metadata
-    CHOLERA_FEATURES = cholera_data['features']
-    CHOLERA_TARGET_MAP = cholera_data['target_map']
+    # Load Cholera and Yellow Fever models (which contain metadata dictionaries)
+    cholera_model = load_metadata_model("cholera.joblib", 'CHOLERA_FEATURES', 'CHOLERA_TARGET_MAP')
+    yellow_fever_model = load_metadata_model("yellow-fever.joblib", 'YF_FEATURES', 'YF_TARGET_MAP')
     
     models = {
         "Lassa Fever": lassa_model,
@@ -66,7 +78,7 @@ try:
     }
     
 except FileNotFoundError as e:
-    st.error(f"Model file not found. Please ensure all model files (including 'cholera.joblib') are in the correct path: {e}")
+    st.error(f"Model file not found. Please ensure all four model files are in the correct path: {e}")
     st.stop()
 except Exception as e:
     st.error(f"An error occurred while loading models: {e}")
@@ -74,7 +86,7 @@ except Exception as e:
 
 
 # ============================================================
-# FEATURE SCHEMA (UPDATED FOR CHOLERA)
+# FEATURE SCHEMA (UPDATED FOR CHOLERA & YELLOW FEVER)
 # ============================================================
 feature_schema = {
     "Lassa Fever": {
@@ -101,7 +113,7 @@ feature_schema = {
         "exposure": ["Yes", "No"],
         "vaccination_status": ["Vaccinated", "Unvaccinated"]
     },
-    # UPDATED CHOLERA SCHEMA to match the features used by cholera.joblib
+    # CHOLERA SCHEMA
     "Cholera": {
         "Age": "numeric",
         "Current_body_temperature_C": "numeric",
@@ -114,17 +126,18 @@ feature_schema = {
         "Vaccination status": ["Unvaccinated", "Vaccinated", "Unknown"],
         "Outcome of case": ["Alive", "Dead", "Unknown"],
     },
+    # YELLOW FEVER SCHEMA
     "Yellow Fever": {
         "age": "numeric",
-        "fever": ["None", "Mild", "High"],
-        "headache": ["Yes", "No"],
-        "jaundice": ["Yes", "No"],
-        "muscle_pain": ["Yes", "No"],
-        "vomiting": ["Yes", "No"],
-        "bleeding": ["Yes", "No"],
-        "liver_function": ["Normal", "Elevated", "Critical"],
-        "platelet_count": "numeric",
-        "exposure": ["Yes", "No"]
+        "fever": ["None", "Mild", "High", "Unknown"],
+        "headache": ["No", "Yes", "Unknown"],
+        "jaundice": ["No", "Yes", "Unknown"],
+        "muscle_pain": ["No", "Yes", "Unknown"],
+        "vomiting": ["No", "Yes", "Unknown"],
+        "bleeding_or_bruising": ["No", "Yes", "Unknown"],
+        "hemorrhagic_syndrome": ["No", "Yes", "Unknown"],
+        "dark_urine": ["No", "Yes", "Unknown"],
+        "fatigue_general_weakness": ["No", "Yes", "Unknown"],
     }
 }
 
@@ -139,16 +152,17 @@ CASE_LABELS = {
 }
 
 # ============================================================
-# ENCODER (MODIFIED)
+# ENCODER (MODIFIED for Cholera & Yellow Fever)
 # ============================================================
 def encode_input_onehot(input_dict, schema, model, disease):
     
-    # --- CHOLERA SPECIFIC ENCODER LOGIC ---
+    # --- MODEL-SPECIFIC FEATURE LIST ---
     if disease == "Cholera":
-        # Use the exact feature list (including OHE names) saved in the joblib file
         model_features = CHOLERA_FEATURES
+    elif disease == "Yellow Fever":
+        model_features = YF_FEATURES
     else:
-        # --- GENERIC ENCODER LOGIC (for Lassa, Measles, YF) ---
+        # --- GENERIC ENCODER LOGIC (for Lassa, Measles) ---
         model_obj = model
         if hasattr(model_obj, "get_booster"):
             model_features = model_obj.get_booster().feature_names
@@ -184,13 +198,12 @@ def make_prediction(model, input_df):
     return model.predict(input_df)[0]
 
 # ============================================================
-# LASSA FEVER CLINICAL RULES
+# CLINICAL RULES (Unchanged)
 # ============================================================
+
 def lassa_clinical_rules(input_data):
-    # NOTE: Using 'Current_body_temperature_in___C' as per your schema
     temp = input_data.get("Current_body_temperature_in___C", 37)
     lab_result = input_data.get("Latest_sample_final_laboratory_result", "Negative").upper()
-
     categorical_features = [
         "Fever","Abdominal_pain","Bleeding_or_bruising","Vomiting",
         "Sore_throat","Diarrhea","General_weakness","Chest_pain"
@@ -206,15 +219,11 @@ def lassa_clinical_rules(input_data):
     else:
         return None
 
-# ============================================================
-# MEASLES CLINICAL RULES
-# ============================================================
 def measles_clinical_rules(input_data):
     koplik = input_data.get("koplik_spots", "No")
     conjunctivitis = input_data.get("conjunctivitis", "No")
     vaccination = input_data.get("vaccination_status", "Unvaccinated")
 
-    # Check if all categorical features are "No"/"Absent"/"None"
     categorical_features = [
         "fever","rash","cough","runny_nose","conjunctivitis",
         "koplik_spots","travel_history","exposure"
@@ -228,53 +237,33 @@ def measles_clinical_rules(input_data):
     else:
         return None
 
-# ============================================================
-# CHOLERA CLINICAL RULES (FINAL VERSION)
-# ============================================================
 def cholera_clinical_rules(input_data):
-    """
-    Implements a strict Confirmed Case definition for Cholera, 
-    excluding body temperature:
-    1. Watery Diarrhea = 'Yes'
-    2. Vomiting = 'Yes'
-    3. Dehydration = 'Yes'
-    4. Fast Heart Rate (Tachycardia) = 'Yes'
-    5. Vaccination status = 'Unvaccinated'
-    """
-    
-    # 1. Extract key inputs
     diarrhea = input_data.get("Diarrhea", "No")
     vomiting = input_data.get("Vomiting", "No")
     dehydration = input_data.get("Dehydration", "No") 
     tachycardia = input_data.get("Fast heart rate (Tachycardia)", "No")
     vaccination = input_data.get("Vaccination status", "Unvaccinated")
     
-    # Check if the case is strictly positive across all required criteria (excluding temp)
     all_positive_symptoms = (
         diarrhea == "Yes" and
         vomiting == "Yes" and
         dehydration == "Yes" and
         tachycardia == "Yes"
     )
-    
     is_unvaccinated = (vaccination == "Unvaccinated")
 
-    # 1. CONFIRMED CASE RULE (Strict combination)
     if all_positive_symptoms and is_unvaccinated:
         return "Confirmed Case"
-        
-    # 2. NOT A CASE RULE (If all key symptoms are negative AND vaccinated)
     elif (diarrhea == "No" and vomiting == "No" and dehydration == "No") and (vaccination == "Vaccinated"):
         return "Not a Case"
-
-    # 3. SUSPECTED CASE RULE (Basic definition for non-extreme cases)
     elif diarrhea == "Yes" and vomiting == "Yes":
         return "Suspected Case"
-
-    # 4. Fallback to ML Prediction
     else:
         return None 
-
+        
+def yellow_fever_clinical_rules(input_data):
+    # No custom clinical rules defined for Yellow Fever in this system.
+    return None
 
 # ============================================================
 # UI
@@ -284,7 +273,6 @@ st.subheader("PhD Research Work by Calister Nnenna Ogbonna-Mbah")
 
 st.subheader("Enter Patient Data Below")
 
-# Ensure models list is not empty before proceeding
 if models:
     disease = st.selectbox("Select Disease Model", list(models.keys()))
     model = models[disease]
@@ -293,24 +281,21 @@ if models:
     with st.form("input_form"):
         st.header(f"Input for {disease}")
         input_data = {}
-        # Organize inputs into two columns for better layout
         cols = st.columns(2)
         
         feature_list = list(schema.items())
 
         for i, (feature, ftype) in enumerate(feature_list):
-            col = cols[i % 2] # Cycle between the two columns
+            col = cols[i % 2]
             with col:
-                # Replace underscores and special chars for UI clarity
+                # Clean up feature name for UI display
                 ui_feature_name = feature.replace('___C', '°C').replace('_', ' ')
                 
                 if ftype == "numeric":
-                    # Use float or int depending on expected input
                     input_data[feature] = st.number_input(ui_feature_name, value=0.0, format="%.2f", key=f"{disease}_{feature}")
                 else:
                     input_data[feature] = st.selectbox(ui_feature_name, ftype, key=f"{disease}_{feature}")
         
-        # Ensure the submit button is outside the columns for full width
         st.markdown("---")
         submit = st.form_submit_button("Predict Case Classification")
 
@@ -319,44 +304,36 @@ if models:
 # ============================================================
 if submit:
     try:
-        # Pass the disease name to the encoder
         input_df = encode_input_onehot(input_data, schema, model, disease)
-        
-        # Determine the label based on the disease
+        raw_pred = make_prediction(model, input_df)
+
+        # Determine the label using the correct target map
         if disease == "Cholera":
-            raw_pred = make_prediction(model, input_df)
-            # Use the custom target map for Cholera
             label = CHOLERA_TARGET_MAP[raw_pred]
+        elif disease == "Yellow Fever":
+            label = YF_TARGET_MAP[raw_pred] # Use the custom YF map
         else:
-            # Use the generic CASE_LABELS for other diseases
-            raw_pred = make_prediction(model, input_df)
             label = CASE_LABELS[disease][raw_pred]
 
         # Apply clinical rules
+        rule_override = None
         if disease == "Lassa Fever":
             rule_override = lassa_clinical_rules(input_data)
         elif disease == "Measles":
             rule_override = measles_clinical_rules(input_data)
         elif disease == "Cholera":
-            # Apply new Cholera clinical rule
             rule_override = cholera_clinical_rules(input_data)
-        else:
-            # Yellow Fever prediction relies solely on ML model
-            rule_override = None
+        elif disease == "Yellow Fever":
+            rule_override = yellow_fever_clinical_rules(input_data) 
 
         final_label = rule_override if rule_override else label
 
-        # Color mapping
+        # Color mapping (Includes both Title Case and lower case keys for consistency)
         bg_color = {
-            "Confirmed Case": "#27ae60",
-            "Probable Case": "#f39c12",
-            "Suspected Case": "#e67e22",
-            "Not a Case": "#95a5a6",
-            # Include lowercase keys for Cholera target map output if necessary
-            "Confirmed case": "#27ae60",
-            "Probable case": "#f39c12",
-            "Suspect case": "#e67e22",
-            "Not a case": "#95a5a6"
+            "Confirmed Case": "#27ae60", "Confirmed case": "#27ae60",
+            "Probable Case": "#f39c12", "Probable case": "#f39c12",
+            "Suspected Case": "#e67e22", "Suspect case": "#e67e22",
+            "Not a Case": "#95a5a6", "Not a case": "#95a5a6"
         }.get(final_label, "#7f8c8d")
 
         border_color = "#ff69b4"
@@ -378,10 +355,11 @@ if submit:
         '>
             CLASSIFICATION: {final_label}
         </div>
-        
+        <div style='margin-top: 15px; font-size: 14px; color: #555; text-align: center;'>
+            ML Model Prediction: **{label}** | Overridden by Clinical Rule: **{'Yes' if rule_override else 'No'}**
+        </div>
         """, unsafe_allow_html=True)
         
-        # Optional: Show input data for verification
         st.markdown("---")
         st.subheader("Input Data Summary")
         st.json(input_data)
