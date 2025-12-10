@@ -1,21 +1,29 @@
-try:
-    # Load non-Cholera models (assumed to be raw model objects)
-    lassa_model = load_generic_model("lassa_xgb_9features.joblib")
-    
-    # Safe Measles model loading
-    loaded = load_generic_model("measles.joblib")
+# ============================================================
+# LOAD MODELS
+# ============================================================
+@st.cache_resource
+def load_generic_model_safe(path):
+    """
+    Load a joblib model and automatically extract from tuple if necessary
+    """
+    loaded = joblib.load(path)
     if isinstance(loaded, tuple):
-        measles_model = loaded[0]  # extract the actual model
-    else:
-        measles_model = loaded
+        return loaded[0]  # Extract model from tuple
+    return loaded
 
-    yellow_fever_model = load_generic_model("yellow-fever.joblib")
+@st.cache_resource
+def load_cholera_model(path):
+    return joblib.load(path)
+
+try:
+    # Load non-Cholera models safely
+    lassa_model = load_generic_model_safe("lassa_xgb_9features.joblib")
+    measles_model = load_generic_model_safe("measles.joblib")
+    yellow_fever_model = load_generic_model_safe("yellow-fever.joblib")
     
-    # Load the specific Cholera joblib file (which contains a dict)
+    # Load Cholera model
     cholera_data = load_cholera_model("cholera.joblib")
     cholera_model = cholera_data['model']
-    
-    # Populate global Cholera metadata
     CHOLERA_FEATURES = cholera_data['features']
     CHOLERA_TARGET_MAP = cholera_data['target_map']
     
@@ -27,8 +35,8 @@ try:
     }
     
 except FileNotFoundError as e:
-    st.error(f"Model file not found. Please ensure all model files (including 'cholera.joblib') are in the correct path: {e}")
+    st.error(f"Model file not found: {e}")
     st.stop()
 except Exception as e:
-    st.error(f"An error occurred while loading models: {e}")
+    st.error(f"An unexpected error occurred while loading models. Check your joblib files and paths.")
     st.stop()
